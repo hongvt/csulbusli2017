@@ -13,8 +13,31 @@
  * -adaptive controller for several input scenarios
  */
 
-
 #include <Servo.h>
+#include <Adafruit_GPS.h>
+#include <Wire.h>
+#include <SoftwareSerial.h>
+
+/***************************************************************************/
+/* GPS Things */
+//Connect GPS Power and ground, 
+//Connect GPS TX to pin3
+//Connect GPS RX to pin2
+SoftwareSerial mySerial(3,2);
+
+// for hardware serial, comment out softwareserial thing,
+// and uncomment the hardwareserial thing below:
+
+//HardwareSerial mySerial = Serial1;
+
+Adafruit_GPS GPS(&mySerial);
+
+// GPSECHO -> 'false' turns off echoing. 'true' turns it on
+#define GPSECHO  true
+
+// set to use or not use interrupt -- you can change in the setup section
+boolean usingInterrupt = false;
+void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 
 /*****************************************************************************/
 /* Servo Things */
@@ -50,32 +73,106 @@ static double zbuff[2] = {};
 /* Classical Controller Gains */
 double kp = 1;                            // Proportional Gain
 double ki = 0;                            // Integral Gain
-double kd = 0;                            // derivative Gain
+double kd = 0;                            // Derivative Gain
 
 
 void setup() {
   
   /* initializations */
-  Serial.begin(9600);                     // set up serial comm for debug
-  pinMode(A0, INPUT);                     // pin where theta (x[0]) will be read from
+  Serial.begin(115200);
+  GPS.begin(9600); 
 
+  /* GPS Setup */
+  // uncomment to turn on recommended minimum fix data including altitude
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  // uncomment to turn on only recomended minimum data
+  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+
+  // Set the update rate to 10Hz
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_10HZ); 
+
+  // Request updates on antenna status, comment out to keep quiet
+  GPS.sendCommand(PGCMD_ANTENNA);
+
+  // timer0 interrupt -- tries to read GPS every 1 ms
+   useInterrupt(true);
+   delay(1000);
+
+  
   /* PWM Output Pin Setup */
-  fan.attach(7);  
-  ser.attach(9);
+  // PWM pins on arduino pro mini are 3,5,6,9,10,11
+  fan.attach(10);  
+  ser.attach(11);
 
   // read from sensors
   // figure out when to do GPS.read -- I think this can happen in an interrupt
-  
-  // store current GPS location, and altitude
-  // lat_deg_0 = GPS.latitude;
-  // long_deg_0 = GPS.longitude;
-  // alt_0 = ...
 
+  
+  // getting lat and long current data is something like this:
+
+  // in case you are not using the interrupt above, you'll
+  // need to 'hand query' the GPS, not suggested :(
+  if (! usingInterrupt) {
+    // read data from the GPS in the 'main loop'
+    char c = GPS.read();
+    // if you want to debug, this is a good time to do it!
+    if (GPSECHO)
+      if (c) Serial.print(c);
+  }
+  
+  // if a sentence is received, we can check the checksum, parse it...
+  if (GPS.newNMEAreceived()) {
+    // a tricky thing here is if we print the NMEA sentence, or data
+    // we end up not listening and catching other sentences! 
+    // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
+    //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
+  
+    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
+      return;  // we can fail to parse a sentence in which case we should just wait for another
+  } 
+        
+    long_deg_0 = (double)GPS.longitude;
+    lat_deg_0 = (double)GPS.latitude;   
+    alt_0 =     (double)GPS.altitude;
+  
   // illuminate status LEDs to verify stuff works
   
   // ESC and Servo initialization
   
 }
+
+
+// -------- Interrupt service routine -- looks for new GPS data and stores it -------
+SIGNAL(TIMER0_COMPA_vect) {
+  char c = GPS.read();
+  // if you want to debug, this is a good time to do it!
+  
+  // I think we can comment the following thing out...
+#ifdef UDR0
+  if (GPSECHO)
+    if (c) UDR0 = c;  
+    // writing direct to UDR0 is much much faster than Serial.print 
+    // but only one character can be written at a time. 
+#endif
+}
+
+
+// --------------------------- Interrupt enable function ------------------------------
+void useInterrupt(boolean v) {
+  if (v) {
+    // Timer0 is already used for millis() - we'll just interrupt somewhere
+    // in the middle and call the "Compare A" function above
+    OCR0A = 0xAF;
+    TIMSK0 |= _BV(OCIE0A);
+    usingInterrupt = true;
+  } else {
+    // do not call the interrupt function COMPA anymore
+    TIMSK0 &= ~_BV(OCIE0A);
+    usingInterrupt = false;
+  }
+}
+
+uint32_t timer = millis();
 
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
@@ -84,23 +181,52 @@ void loop() {
     /*__________________________________MEASUREMENT___________________________________*/
     /* Read and Condition Data from GPS and Altimeter */
 
-    // gps data has to be read and parsed. I don't have the GPS, so I can't test
-    // this, so I will leave it to be figured out later. 
+    // gps data has to be read and parsed. I think since we are using the ISR, we don't
+    // need to worry about the thing immediately below
+    // in case you are not using the interrupt above, you'll
+    // need to 'hand query' the GPS, not suggested :(
+    if (! usingInterrupt) {
+    // read data from the GPS in the 'main loop'
+    char c = GPS.read();
+    // if you want to debug, this is a good time to do it!
+    if (GPSECHO)
+      if (c) Serial.print(c);
+   }
+
+    // if a sentence is received, we can check the checksum, parse it...
+    if (GPS.newNMEAreceived()) {
+    // a tricky thing here is if we print the NMEA sentence, or data
+    // we end up not listening and catching other sentences! 
+    // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
+    //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
+  
+    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
+      return;  // we can fail to parse a sentence in which case we should just wait for another
+  }
+
+    // if millis() or timer wraps around, we'll just reset it
+    if (timer > millis())  timer = millis();
+
+
+    // proceed to calculations every 100ms or so...
+    // I bet there is a better way to do this...
+    if (millis() - timer > 100) { 
+    timer = millis(); // reset the timer
     
-    // getting lat and long current data is something like this:
-        
-    //long_deg_i = GPS.longitude;
-    //lat_deg_i = GPS.latitude;    
-    // there might be a type conversion -- I don't know.
-    // there is also altitude -- on gps -- I don't know if we can use this.
+    // getting lat and long current data is something like this:        
+    long_deg_i = (double)GPS.longitude;
+    lat_deg_i = (double)GPS.latitude;   
+    alt_i =     (double)GPS.altitude;
+    // I don't know for sure if this type conversion is valid
+
 
     // I used long beach as a reference to map lat and long to xy grid in feet
     // Assuming lat and long data are in decimal degrees, and altitude is in meters.
     // I have no idea if the gps data is like this.
     
-    //x = (long_deg_i - long_deg_0)*301837;
-    //y = (lat_deg_i - lat_deg_0)*196850;
-    //z = (alt_i - alt_0)*3.28;
+    x = (long_deg_i - long_deg_0)*301837;
+    y = (lat_deg_i - lat_deg_0)*196850;
+    z = (alt_i - alt_0)*3.28;
 
     /* Filter the state measurements by calling iir_2() */
     //leave this out for initial tests
@@ -136,6 +262,8 @@ void loop() {
      *        
      * Controller will outptu fanVAL and serVAL
      */
+
+     
     
 
     /*________________________________________________________________________________*/
@@ -146,6 +274,7 @@ void loop() {
     
     fan.writeMicroseconds(fanVAL);                // write pwm 
     ser.writeMicroseconds(serVAL);                // write pwm    
+  }
 }
 //-------------------------------------END LOOP----------------------------------------
 
