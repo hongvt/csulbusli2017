@@ -26,4 +26,10 @@ LOOP:
 
 
 CONSIDERATIONS:
-GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz. 
+GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
+
+
+LIBRARIES:
+<Servo.h>
+<Adafruit_GPS.h>
+<Wire.h>      ----> I believe the barometer is I2c
