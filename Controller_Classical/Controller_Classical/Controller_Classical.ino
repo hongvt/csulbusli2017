@@ -42,8 +42,8 @@ void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-int fanVAL = 0;                           // fan actuation variable
-int serVAL = 0;                           // servo actuation variable
+double fanVAL = 0;                        // fan actuation variable
+double serVAL = 0;                        // servo actuation variable
 
 /* Measurements and State Variables */
 double lat_deg_0;                         // latitude measured upon reset
@@ -58,36 +58,45 @@ double y;                                 // y position (conditioned latitude)
 double z;                                 // z position (conditioned altitude)
 
 double dist;                              // distance squared from the oirigin
+double desc;                              // descent rate
+double error_dist;                        // distance error     
+double error_desc;                        // descent rate error
+
+const double radius = 300;                // desired radius from launch site
+const double descent = 10;                // desired descent rate
+
 
 /********************** IIR filter constants and arrays **********************/
 /* Filter Coefficients for xyz position */
 //these will be computed on matlab later
-const double a[3] = {};                   // 3d position data filter feedforward
-const double b[3] = {};                   // 3d position data filter feedback
-const double acs[3] = {};                 // steering controller feedforward
-const double bcs[3] = {};                 // steering controller feedback
-const double aca[3] = {};                 // altitude controller feedforward
-const double aca[3] = {};                 // altitude controller feedback
+double a[3] = {1,1,1};              // 2d position data filter feedforward
+double b[3] = {1,1,1};              // 2d position data filter feedback
+double ad[3] = {1,1,1};             // descent derivative feedforward
+double bd[3] = {1,1,1};             // descent derivative feedback
+double acs[3] = {1,1,1};            // steering controller feedforward
+double bcs[3] = {1,1,1};            // steering controller feedback
+double aca[3] = {1,1,1};            // altitude controller feedforward
+double bca[3] = {1,1,1};            // altitude controller feedback
 /* Buffers */
-static double xbuff[2] = {};              // Buffer for intermediate values
+static double xbuff[2] = {};              // Buffers for intermediate values
 static double ybuff[2] = {};
-static double zbuff[2] = {};
+static double descbuff[2] = {};
 
 static double csbuff[2] = {};
 static double cabuff[2] = {};
 
-/************************* Controller Related Things *************************/
-/* Classical Controller Gains */
-double kp = 1;                            // Proportional Gain
-double ki = 0;                            // Integral Gain
-double kd = 0;                            // Derivative Gain
-
-
+/*****************************************************************************/
 void setup() {
   
   /* initializations */
   Serial.begin(115200);
   GPS.begin(9600); 
+
+  /* PWM Output Pin Setup */
+  // PWM pins on arduino pro mini are 3,5,6,9,10,11
+  fan.attach(10);  
+  ser.attach(11);
+  // remember to attach the stepper motor  
 
   /* GPS Setup */
   // uncomment to turn on recommended minimum fix data including altitude
@@ -104,18 +113,7 @@ void setup() {
   // timer0 interrupt -- tries to read GPS every 1 ms
    useInterrupt(true);
    delay(1000);
-
   
-  /* PWM Output Pin Setup */
-  // PWM pins on arduino pro mini are 3,5,6,9,10,11
-  fan.attach(10);  
-  ser.attach(11);
-
-  // read from sensors
-  // figure out when to do GPS.read -- I think this can happen in an interrupt
-
-  
-  // getting lat and long current data is something like this:
 
   // in case you are not using the interrupt above, you'll
   // need to 'hand query' the GPS, not suggested :(
@@ -125,7 +123,7 @@ void setup() {
     // if you want to debug, this is a good time to do it!
     if (GPSECHO)
       if (c) Serial.print(c);
-  }
+      }
   
   // if a sentence is received, we can check the checksum, parse it...
   if (GPS.newNMEAreceived()) {
@@ -136,16 +134,17 @@ void setup() {
   
     if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
       return;  // we can fail to parse a sentence in which case we should just wait for another
-  } 
+      } 
         
-    long_deg_0 = (double)GPS.longitude;
-    lat_deg_0 = (double)GPS.latitude;   
+    long_deg_0 = (double)GPS.longitudeDegrees;
+    lat_deg_0 = (double)GPS.latitudeDegrees;   
     alt_0 =     (double)GPS.altitude;
   
   // illuminate status LEDs to verify stuff works
   
   // ESC and Servo initialization
-  
+
+  // Stepper motor initialization
 }
 
 
@@ -179,6 +178,7 @@ void useInterrupt(boolean v) {
   }
 }
 
+
 uint32_t timer = millis();
 
 // ---------------------------------- BEGIN LOOP ---------------------------------------
@@ -198,7 +198,7 @@ void loop() {
     // if you want to debug, this is a good time to do it!
     if (GPSECHO)
       if (c) Serial.print(c);
-   }
+      }
 
     // if a sentence is received, we can check the checksum, parse it...
     if (GPS.newNMEAreceived()) {
@@ -209,20 +209,20 @@ void loop() {
   
     if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
       return;  // we can fail to parse a sentence in which case we should just wait for another
-  }
+      }
 
     // if millis() or timer wraps around, we'll just reset it
     if (timer > millis())  timer = millis();
 
 
-    // proceed to calculations every 100ms or so...
+    // proceed to data gathering and calculations every 100ms or so...
     // I bet there is a better way to do this...
     if (millis() - timer > 100) { 
     timer = millis(); // reset the timer
     
     // getting lat and long current data is something like this:        
-    long_deg_i = (double)GPS.longitude;
-    lat_deg_i = (double)GPS.latitude;   
+    long_deg_i = (double)GPS.longitudeDegrees;
+    lat_deg_i = (double)GPS.latitudeDegrees;   
     alt_i =     (double)GPS.altitude;
     // I don't know for sure if this type conversion is valid
 
@@ -244,47 +244,37 @@ void loop() {
     //z = iir_2(z,zbuf,a,b);
 
     /* Calculate Distance Squared from the Origin */
-    //dist = x*x + y*y;
+    dist = x*x + y*y;
     
     /*________________________________________________________________________________*/
     /*____________________________________CONTROL_____________________________________*/
-    /* 2 interacting controllers 
+    /* 2 separate controllers 
      *
-     * Controller 1: maintain a distance of 300 ft from the target
-     * three scenarios: 
-     *  (1). current position is much greater than 300 ft from launch site
-     *        --fly directly toward the launch site until within 300ft, then go to (2)
-     *  (2). current position is very close to 300 ft
-     *        --fly in a predefined pattern for a predetermined amount of time
-     *        --once spiral downard maintaining 300ft distance from launch site
-     *  (3). current position is much closer than 300 ft from target
-     *        --fly straight until near 300ft from target, then go to (2)
-     *  
-     * Controller 2: maintain a reasonable descent rate
-     * two scenarios:
-     *  (1). current altitude is above a predefined threshold
-     *        --maintain a predefined descent rate
-     *  (2), current altitude is below a predefined threshold
-     *        --flatten out a bit and await manual takeover
-     *        
-     * Controller will outptu fanVAL and serVAL
+     * Controller 1: 
      */
-
-     
-    
-
+       error_dist = radius*radius - dist;         // calculate distance error
+       serVAL = iir_2(error_dist,csbuff,acs,bcs); // calculate control effort
+     /*
+     * Controller 2:
+     */
+       desc = iir_2(alt_i,descbuff,ad,bd);        // calculate descent rate
+       error_desc = descent - desc;               // calculate descent rate error
+       fanVAL = iir_2(error_desc,cabuff,aca,bca); // calculate control effort   
+           
     /*________________________________________________________________________________*/
     /*______________________________OUTPUT CONDITIONING_______________________________*/
+
+    // may have to do some clipping of the control effort values... more later.
+    
     //mapping below is for int valued inputs
     fanVAL = map(fanVAL, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
-    serVAL = map(serVAL, 0, 1024, 1000, 2000);    // map actuation value to pulse width
+    serVAL = map(serVAL, -50, 50, 1300, 1700);    // map actuation value to pulse width
     
     fan.writeMicroseconds(fanVAL);                // write pwm 
     ser.writeMicroseconds(serVAL);                // write pwm    
   }
 }
 //-------------------------------------END LOOP----------------------------------------
-
 
 
 //--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
