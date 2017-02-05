@@ -33,3 +33,7 @@ LIBRARIES:
 <Servo.h>
 <Adafruit_GPS.h>
 <Wire.h>      ----> I believe the barometer is I2c
+
+
+ALSO:
+anyone feel free to fancy up the code when I'm done. I'm not very sophisticated.
