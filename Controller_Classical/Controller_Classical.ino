@@ -1,16 +1,16 @@
-/*CANNOT READ GPS YET!!! CANNOT CONTROL ANYTHING!!! IT DOES NOTHING YET!!!*/
-/*THIS IS JUST ME GETTING MY THOUGHTS IN ORDER*/
-
 /********************* BASIC AUTONOMOUS CONTROL SKETCH *********************/
-/* 
- * This sketch amounts to an autonomous controller for a simple flight path.
- * It relies on a 3d position input, which will ultimately be provided by 
- * the gps and the altimeter. The data provided by these instruments needs
- * to be conditioned.
+/* _TYPE: CLASSICAL LEAD/LAG or PID or something
+ * This sketch amounts to an autonomous controller for a simple flight path
+ * for the csulbusli2017 paraglider stage.
+ * _FLIGHTPATH CONTROL SUBSYSTEM:
+ * --INPUT: 3d position relative to launch site provided by GPS / Altimeter
+ * --OUTPUT: servo angle and fan speed
+ * _DEPLOYMENT ROUTINE SUBSYSTEM:
+ * --INPUT: 2 digital signals -- start stepper, stop stepper
+ * --OUTPUT: Stepper motor drive
  * 
  * FEATURES:
- * -2nd order IIR filter function for removing noise from data
- * -adaptive controller for several input scenarios
+ * -2nd order IIR filter function for smoothing data and applying compensation
  */
 
 #include <Servo.h>
