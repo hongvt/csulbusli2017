@@ -4,7 +4,7 @@
 %control applications. 
 
 %Constants and Dependent Variables
-T = 1/10;                   %sample period
+T = 1/5;                    %sample period
 
 fs = 1/T;                   %sample frequency
 
@@ -12,27 +12,27 @@ s = tf('s');                %frequency domain variable s
 
 %1st LOWPASS FILTER
 f1 = 3;                     %pole location
-H1 = f1/(s+f1)              %Continuous time 1st order LPF
-dH1 = c2d(H1,T,'tustin')    %Convert to discree time
+H1 = f1/(s+f1);             %Continuous time 1st order LPF
+dH1 = c2d(H1,T,'tustin');   %Convert to discree time
 
 %2nd LOWPASS FILTER
-f2 = 3;                     %repeated pole location
-H2 = f1^2/(s^2+f1^2)        %Continuous time 2nd order LPF
-dH2 = c2d(H2,T,'tustin')    %Convert to discree time
+f2 = 3;                   %repeated pole location
+H2 = f2^2/(s+f2)^2;         %Continuous time 2nd order LPF
+dH2 = c2d(H2,T,'tustin');   %Convert to discree time
 
 %USABLE DERIVATIVE
 fd = 3;                     %Derivative cutoff freq
-D = fd^2*s/(s^2+fd^2)       %Continuous time filtered derivative
-dD = c2d(D,T,'tustin')      %Convert to discree time
-
+D = fd^2*s/(s+fd)^2;        %Continuous time filtered derivative
+dD = c2d(D,T,'tustin');     %Convert to discree time
+step(dD,D)
 %PID COMPENSATOR:
 %Controller gains
 Kp = 10;
 Ki = 1; 
 Kd = 2;
 %Compensator 
-C = Kp + Ki/s + Kd*fd*s/(s+fd);   %Continuous Time PID compensator
-dC = c2d(C,T,'tustin')      %Convert to discree time 
+C = Kp + Ki/s + Kd*s*H1;    %Continuous Time PID compensator
+dC = c2d(C,T,'matched');    %Convert to discrete by pz matching
 
 %LEAD LAG COMPENSATOR:
 %p1 and z1 are lead -- phase lead at high req, improves stability
@@ -44,6 +44,6 @@ z2 = 1.1;
 p2 = 1;
 
 %Direct implementation
-LL = (s+z1)*(s+z2)/((s+p1)*(s+p2))
-dLL = c2d(LL,T,'tustin')
+LL = (s+z1)*(s+z2)/((s+p1)*(s+p2));
+dLL = c2d(LL,T,'tustin');
 

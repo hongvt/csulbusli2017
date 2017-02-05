@@ -42,8 +42,8 @@ void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fanVAL = 0;                        // fan actuation variable
-double serVAL = 0;                        // servo actuation variable
+double fan_val = 0;                        // fan actuation variable
+double ser_val = 0;                        // servo actuation variable
 
 /* Measurements and State Variables */
 double lat_deg_0;                         // latitude measured upon reset
@@ -62,30 +62,33 @@ double desc;                              // descent rate
 double error_dist;                        // distance error     
 double error_desc;                        // descent rate error
 
-const double radius = 300;                // desired radius from launch site
+const double RADIUS = 300;                // desired RADIUS from launch site
 const double descent = 10;                // desired descent rate
 
 
 /********************** IIR filter constants and arrays **********************/
 /* Filter Coefficients for xyz position */
-//these will be computed on matlab later
-double a[3] = {1,1,1};              // 2d position data filter feedforward
-double b[3] = {1,1,1};              // 2d position data filter feedback
-double ad[3] = {1,1,1};             // descent derivative feedforward
-double bd[3] = {1,1,1};             // descent derivative feedback
-double acs[3] = {1,1,1};            // steering controller feedforward
-double bcs[3] = {1,1,1};            // steering controller feedback
-double aca[3] = {1,1,1};            // altitude controller feedforward
-double bca[3] = {1,1,1};            // altitude controller feedback
+//these assume a sampling frequency of 5Hz... use Matlab script to calculate
+double a[3] = {1, -1.077, 0.2899};        // 2d position data filter feedback
+double b[3] = {0.05325, 0.1065, 0.05325}; // 2d position data filter feedforward
+double ad[3] = {1, -1.077, 0.2899};       // descent derivative feedback
+double bd[3] = {0.5325, 0 -0.5325};       // descent derivative feedforward
+double acs[3] = {1,1,1};                  // steering controller feedback
+double bcs[3] = {1,1,1};                  // steering controller feedforward
+double aca[3] = {1,1,1};                  // altitude controller feedback
+double bca[3] = {1,1,1};                  // altitude controller feedforward
 /* Buffers */
 static double xbuff[2] = {};              // Buffers for intermediate values
 static double ybuff[2] = {};
+static double zbuff[2] = {};
 static double descbuff[2] = {};
 
 static double csbuff[2] = {};
 static double cabuff[2] = {};
 
-/*****************************************************************************/
+
+//-----------------------------------------------------------------------------
+//---------------------------------BEGIN SETUP---------------------------------
 void setup() {
   
   /* initializations */
@@ -96,6 +99,7 @@ void setup() {
   // PWM pins on arduino pro mini are 3,5,6,9,10,11
   fan.attach(10);  
   ser.attach(11);
+  
   // remember to attach the stepper motor  
 
   /* GPS Setup */
@@ -146,6 +150,9 @@ void setup() {
 
   // Stepper motor initialization
 }
+//-----------------------------------END SETUP---------------------------------------
+//-----------------------------------------------------------------------------------
+
 
 
 // -------- Interrupt service routine -- looks for new GPS data and stores it -------
@@ -181,6 +188,8 @@ void useInterrupt(boolean v) {
 
 uint32_t timer = millis();
 
+
+//--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
 
@@ -190,8 +199,6 @@ void loop() {
 
     // gps data has to be read and parsed. I think since we are using the ISR, we don't
     // need to worry about the thing immediately below
-    // in case you are not using the interrupt above, you'll
-    // need to 'hand query' the GPS, not suggested :(
     if (! usingInterrupt) {
     // read data from the GPS in the 'main loop'
     char c = GPS.read();
@@ -237,11 +244,9 @@ void loop() {
 
     /* Filter the state measurements by calling iir_2() */
     //leave this out for initial tests
-    //I will eventually calculate filter coefficients for like a 15 Hz cutoff
-    //don't uncomment without the correct filter coefficients
-    //x = iir_2(x,xbuf,a,b);
-    //y = iir_2(y,ybuf,a,b);
-    //z = iir_2(z,zbuf,a,b);
+    x = iir_2(x,xbuff,a,b);
+    y = iir_2(y,ybuff,a,b);
+    z = iir_2(z,zbuff,a,b);
 
     /* Calculate Distance Squared from the Origin */
     dist = x*x + y*y;
@@ -252,14 +257,14 @@ void loop() {
      *
      * Controller 1: 
      */
-       error_dist = radius*radius - dist;         // calculate distance error
-       serVAL = iir_2(error_dist,csbuff,acs,bcs); // calculate control effort
+       error_dist = RADIUS*RADIUS - dist;         // calculate distance error
+       ser_val = iir_2(error_dist,csbuff,acs,bcs); // calculate control effort
      /*
      * Controller 2:
      */
        desc = iir_2(alt_i,descbuff,ad,bd);        // calculate descent rate
        error_desc = descent - desc;               // calculate descent rate error
-       fanVAL = iir_2(error_desc,cabuff,aca,bca); // calculate control effort   
+       fan_val = iir_2(error_desc,cabuff,aca,bca); // calculate control effort   
            
     /*________________________________________________________________________________*/
     /*______________________________OUTPUT CONDITIONING_______________________________*/
@@ -267,16 +272,19 @@ void loop() {
     // may have to do some clipping of the control effort values... more later.
     
     //mapping below is for int valued inputs
-    fanVAL = map(fanVAL, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
-    serVAL = map(serVAL, -50, 50, 1300, 1700);    // map actuation value to pulse width
+    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
+    ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
     
-    fan.writeMicroseconds(fanVAL);                // write pwm 
-    ser.writeMicroseconds(serVAL);                // write pwm    
+    fan.writeMicroseconds(fan_val);                // write pwm 
+    ser.writeMicroseconds(ser_val);                // write pwm    
   }
 }
 //-------------------------------------END LOOP----------------------------------------
+//-------------------------------------------------------------------------------------
 
 
+
+//-------------------------------------------------------------------------------------
 //--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
 double iir_2(double input, double buff[2], double a[3], double b[3]){
 
@@ -299,4 +307,5 @@ buff[0] = in_sum;                   // shift input accumulator value into w[n-1]
 
 return out_sum;                     // return the filtered output
 }
-//----------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
