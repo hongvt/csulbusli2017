@@ -261,12 +261,12 @@ void loop() {
      * Controller 1: 
      */
 
+     //error_dist = RADIUS*RADIUS - dist;         // calculate distance error
+     
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX){ser_val = ser_val + 10;}
      else {ser_val = ser_val;}
      
-       //error_dist = RADIUS*RADIUS - dist;         // calculate distance error
-       ser_val = iir_2(error_dist,csbuff,acs,bcs); // calculate control effort
      /*
      * Controller 2:
      */
