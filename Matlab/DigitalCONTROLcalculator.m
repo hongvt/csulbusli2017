@@ -24,7 +24,7 @@ dH2 = c2d(H2,T,'tustin');   %Convert to discree time
 fd = 3;                     %Derivative cutoff freq
 D = fd^2*s/(s+fd)^2;        %Continuous time filtered derivative
 dD = c2d(D,T,'tustin');     %Convert to discree time
-step(dD,D)
+
 %PID COMPENSATOR:
 %Controller gains
 Kp = 10;

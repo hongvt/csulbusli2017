@@ -56,6 +56,7 @@ double alt_i;                             // current altitude              (m)
 double x;                                 // x position (conditioned longitutde)(ft)
 double y;                                 // y position (conditioned latitude)  (ft)
 double z;                                 // z position (conditioned altitude)  (ft)
+double angle;                             // Course over ground angle          (deg)
 
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
@@ -142,10 +143,17 @@ void setup() {
     if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
       return;  // we can fail to parse a sentence in which case we should just wait for another
       } 
-        
+    //GPS.longitude and GPS.latitude give position data in the form: DDMM.MMMM
+    //In order to convert this to decimal degrees, you gotta do something like 
+    //[matlab] floor(longitude/100)+mod(longitude,100)/60. luckily the .cpp file 
+    //takes care of it with GPS.xxxxxDegrees. 
     long_deg_0 =  (double)GPS.longitudeDegrees;
     lat_deg_0 =   (double)GPS.latitudeDegrees;   
-    alt_0 =       (double)GPS.altitude;
+    alt_0 =       (double)GPS.altitude;   //altitude might be in centimeters... watch out
+
+  // Also, the cold start response time on the GPS is like 35 seconds. We have to make sure
+  // we spend enough time looking for data so we store good data for the launch site location
+
   
   // illuminate status LEDs to verify stuff works
   
@@ -230,10 +238,14 @@ void loop() {
     if (millis() - timer > T_SAMP) { 
     timer = millis(); // reset the timer
     
-    // getting lat and long current data is something like this:        
-    long_deg_i = (double)GPS.longitudeDegrees;
-    lat_deg_i = (double)GPS.latitudeDegrees;   
-    alt_i =     (double)GPS.altitude;
+    // What is the minimum of data that we need?
+    // x,y position relative to launch site
+    // altitude relative to launch site
+    // bearing angle     
+    long_deg_i =  (double)GPS.longitudeDegrees;
+    lat_deg_i =   (double)GPS.latitudeDegrees; 
+    angle =       (double)GPS.angle;          //don't know if NED or ENU
+    alt_i =       (double)GPS.altitude; 
     // I don't know for sure if this type conversion is valid
 
 
@@ -243,7 +255,8 @@ void loop() {
     
     x = (long_deg_i - long_deg_0)*301837;
     y = (lat_deg_i - lat_deg_0)*196850;
-    z = (alt_i - alt_0)*3.28;
+    
+    z = (alt_i - alt_0)*3.28;           //may be better to read from barometer
 
     /* Filter the state measurements by calling iir_2() */
     //leave this out for initial tests
@@ -258,13 +271,19 @@ void loop() {
     /*____________________________________CONTROL_____________________________________*/
     /* 2 separate controllers 
      *
+     *SIMPLE GROUND EXPERIMENT: 
+     *--start at a distance of near RADIUS from target and deploy paraglider 90 degrees
+     *--from target. Make sure you picked the right servo correction for a right handed 
+     *--circular flight path (right handed means making only left turns)
      * Controller 1: 
      */
+    
 
-     //error_dist = RADIUS*RADIUS - dist;         // calculate distance error
+     error_dist = RADIUS_MAX*RADIUS_MAX - dist;         // calculate distance error
      
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
-     else if (dist > RADIUS_MAX*RADIUS_MAX){ser_val = ser_val + 10;}
+     else if (dist > RADIUS_MAX*RADIUS_MAX)
+        {ser_val = error_dist*10;}              // Turn left/right -- choose for simple exp
      else {ser_val = ser_val;}
      
      /*
