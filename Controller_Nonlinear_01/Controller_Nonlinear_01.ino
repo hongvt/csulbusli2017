@@ -1,5 +1,5 @@
 /********************* BASIC AUTONOMOUS CONTROL SKETCH *********************/
-/* _TYPE: CLASSICAL LEAD/LAG or PID or something
+/* _TYPE: NONLINEAR ADAPTIVE CONTROLLERg
  * This sketch amounts to an autonomous controller for a simple flight path
  * for the csulbusli2017 paraglider stage.
  * _FLIGHTPATH CONTROL SUBSYSTEM:
@@ -10,7 +10,7 @@
  * --OUTPUT: Stepper motor drive
  * 
  * FEATURES:
- * -2nd order IIR filter function for smoothing data and applying compensation
+ * -2nd order IIR filter function for smoothing data
  */
 
 #include <Servo.h>
@@ -56,7 +56,7 @@ double alt_i;                             // current altitude              (m)
 double x;                                 // x position (conditioned longitutde)(ft)
 double y;                                 // y position (conditioned latitude)  (ft)
 double z;                                 // z position (conditioned altitude)  (ft)
-double angle;                             // Course over ground angle          (deg)
+int angle;                                // Course over ground angle          (deg)
 
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
@@ -112,45 +112,22 @@ void setup() {
   // uncomment to turn on only recomended minimum data
   //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
 
-  // Set the update rate to 10Hz
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_10HZ); 
+  // Set the update rate to 5Hz
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_5HZ); 
 
   // Request updates on antenna status, comment out to keep quiet
   GPS.sendCommand(PGCMD_ANTENNA);
 
   // timer0 interrupt -- tries to read GPS every 1 ms
    useInterrupt(true);
-   delay(1000);
+   delay(10000);
   
+  readGPS();
 
-  // in case you are not using the interrupt above, you'll
-  // need to 'hand query' the GPS, not suggested :(
-  if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
-    char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
-    if (GPSECHO)
-      if (c) Serial.print(c);
-      }
+  long_deg_0 = long_deg_i;
+  lat_deg_0 = lat_deg_i;
+  alt_0 = alt_i;
   
-  // if a sentence is received, we can check the checksum, parse it...
-  if (GPS.newNMEAreceived()) {
-    // a tricky thing here is if we print the NMEA sentence, or data
-    // we end up not listening and catching other sentences! 
-    // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-    //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
-  
-    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-      return;  // we can fail to parse a sentence in which case we should just wait for another
-      } 
-    //GPS.longitude and GPS.latitude give position data in the form: DDMM.MMMM
-    //In order to convert this to decimal degrees, you gotta do something like 
-    //[matlab] floor(longitude/100)+mod(longitude,100)/60. luckily the .cpp file 
-    //takes care of it with GPS.xxxxxDegrees. 
-    long_deg_0 =  (double)GPS.longitudeDegrees;
-    lat_deg_0 =   (double)GPS.latitudeDegrees;   
-    alt_0 =       (double)GPS.altitude;   //altitude might be in centimeters... watch out
-
   // Also, the cold start response time on the GPS is like 35 seconds. We have to make sure
   // we spend enough time looking for data so we store good data for the launch site location
 
@@ -165,7 +142,7 @@ void setup() {
 //-----------------------------------------------------------------------------------
 
 
-
+//-----------------------------------------------------------------------------------
 // -------- Interrupt service routine -- looks for new GPS data and stores it -------
 SIGNAL(TIMER0_COMPA_vect) {
   char c = GPS.read();
@@ -195,7 +172,7 @@ void useInterrupt(boolean v) {
     usingInterrupt = false;
   }
 }
-
+//-------------------------------------------------------------------------------------
 
 uint32_t timer = millis();
 
@@ -207,52 +184,11 @@ void loop() {
     /*________________________________________________________________________________*/
     /*__________________________________MEASUREMENT___________________________________*/
     /* Read and Condition Data from GPS and Altimeter */
-
-    // gps data has to be read and parsed. I think since we are using the ISR, we don't
-    // need to worry about the thing immediately below
-    if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
-    char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
-    if (GPSECHO)
-      if (c) Serial.print(c);
-      }
-
-    // if a sentence is received, we can check the checksum, parse it...
-    if (GPS.newNMEAreceived()) {
-    // a tricky thing here is if we print the NMEA sentence, or data
-    // we end up not listening and catching other sentences! 
-    // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-    //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
-  
-    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-      return;  // we can fail to parse a sentence in which case we should just wait for another
-      }
-
-    // if millis() or timer wraps around, we'll just reset it
-    if (timer > millis())  timer = millis();
-
-
-    // proceed to data gathering and calculations every T_SAMP (ms)
-    // I bet there is a better way to do this...
-    if (millis() - timer > T_SAMP) { 
-    timer = millis(); // reset the timer
-    
-    // What is the minimum of data that we need?
-    // x,y position relative to launch site
-    // altitude relative to launch site
-    // bearing angle     
-    long_deg_i =  (double)GPS.longitudeDegrees;
-    lat_deg_i =   (double)GPS.latitudeDegrees; 
-    angle =       (double)GPS.angle;          //don't know if NED or ENU
-    alt_i =       (double)GPS.altitude; 
-    // I don't know for sure if this type conversion is valid
-
-
+    readGPS();                          //function reads lat, long, alt and angle
+   
     // I used long beach as a reference to map lat and long to xy grid in feet
     // Assuming lat and long data are in decimal degrees, and altitude is in meters.
-    // I have no idea if the gps data is like this.
-    
+    // I have no idea if the gps data is like this.    
     x = (long_deg_i - long_deg_0)*301837;
     y = (lat_deg_i - lat_deg_0)*196850;
     
@@ -277,17 +213,18 @@ void loop() {
      *--circular flight path (right handed means making only left turns)
      * Controller 1: 
      */
-    
-
      error_dist = RADIUS_MAX*RADIUS_MAX - dist;         // calculate distance error
-     
+
+     /*
+      * Controller 1: Turning Radius
+      */
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX)
         {ser_val = error_dist*10;}              // Turn left/right -- choose for simple exp
      else {ser_val = ser_val;}
      
      /*
-     * Controller 2:
+     * Controller 2: Descent Rate
      */
        desc = iir_2(alt_i,descbuff,ad,bd);        // calculate DESCENT rate
        error_desc = DESCENT - desc;               // calculate DESCENT rate error
@@ -311,7 +248,6 @@ void loop() {
     
     fan.writeMicroseconds(fan_val);                // write pwm 
     ser.writeMicroseconds(ser_val);                // write pwm    
-  }
 }
 //-------------------------------------END LOOP----------------------------------------
 //-------------------------------------------------------------------------------------
@@ -343,3 +279,73 @@ return out_sum;                     // return the filtered output
 }
 //------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------------
+//------------------------------GPS READING FUNCTION----------------------------------
+void readGPS(){
+   // gps data has to be read and parsed. I think since we are using the ISR, we don't
+    // need to worry about the thing immediately below
+    if (! usingInterrupt) {
+    // read data from the GPS in the 'main loop'
+      char c = GPS.read();
+    // if you want to debug, this is a good time to do it!
+      if (GPSECHO)
+        if (c) Serial.print(c);
+        } 
+
+    // if a sentence is received, we can check the checksum, parse it...
+    if (GPS.newNMEAreceived()) {
+      // a tricky thing here is if we print the NMEA sentence, or data
+      // we end up not listening and catching other sentences! 
+      // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
+      //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
+  
+      if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
+        return;  // we can fail to parse a sentence in which case we should just wait for another
+        }
+
+    // if millis() or timer wraps around, we'll just reset it
+    if (timer > millis())  timer = millis();
+
+
+    // proceed to data gathering and calculations every T_SAMP (ms)
+    // I bet there is a better way to do this...
+    if (millis() - timer > T_SAMP) { 
+    timer = millis(); // reset the timer
+    
+    // What is the minimum of data that we need?
+    // x,y position relative to launch site
+    // altitude relative to launch site
+    // bearing angle     
+    long_deg_i =  (double)GPS.longitudeDegrees;
+    lat_deg_i =   (double)GPS.latitudeDegrees; 
+    angle =       (int)GPS.angle;          //don't know if NED or ENU
+    alt_i =       (double)GPS.altitude; 
+    // I don't know for sure if this type conversion is valid
+
+    // if angle is in ENU, uncomment the following:
+    // angle = angle - 90;
+    // angle = -angle;
+    // angle = angle%360;
+    }
+}
+//---------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------
+
+
+int quadrant(double x, double y){
+  int product = 0;
+  int sum = 0;
+  int difference = 0;
+  x = int(x);
+  y = int(y);
+
+  product = x*y;
+  sum = x+y;
+  difference = x-y;
+  
+  
+}
+
+
+

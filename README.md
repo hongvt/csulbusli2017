@@ -20,7 +20,8 @@ LOOP:
 -calculate distance squared (faster to calculate than a square root)
 -calculate rate of descent (with IIR derivative filter)
 
--2 separate feedback controllers control the distance squared from the launch site and the rate of descent quasi independently. Output of the controller is the pulse widths to be applied to the servo and fan.
+----CONTROLLER----
+**multiple options
 
 -write pwm to servo and fan
 
