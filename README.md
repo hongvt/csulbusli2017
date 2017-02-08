@@ -28,12 +28,10 @@ I am writing the Arduino sketch for the board Pro Mini,  because that is all I h
 	1. Space around launch site divided into 8 45 degree pie shaped regions--region number determines desired angle over ground.      
 	2. Once near launch site, controller will act to maintain a predefined distance from a target.
 	3. Altitude control will be separate, and determined by the time.
-}
 
 ##CONSIDERATIONS:
 
 	*GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
-
 
 ##LIBRARIES:
 
