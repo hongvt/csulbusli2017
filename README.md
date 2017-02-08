@@ -8,19 +8,21 @@ I am writing the Arduino sketch for the board Pro Mini,  because that is all I h
 
 ##BASIC DESCRIPTION:
 
-##SETUP:
+###SETUP:{
 -read gps and altimeter upon reset, store in variables.
 -light status lights to verify functionality of instruments
 -set up pwm outputs
+###}
 
-##LOOP:{
+###LOOP:{
 -read gps and altimeter    
 -convert sensor data to xyz coordinates
 -filter data if necessary (IIR filter function included)
 -calculate distance squared (faster to calculate than a square root)
 -calculate rate of descent (with IIR derivative filter)
+###}
 
-##CONTROLLER
+###CONTROLLER
 ---
 1. space around launch site divided into 8 45 degree pie shaped regions.
 	--region number determines desired angle over ground.      
