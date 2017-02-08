@@ -122,9 +122,9 @@ void setup() {
    useInterrupt(true);
    delay(10000);
   
-  readGPS();
+  readSTATE();
 
-  long_deg_0 = long_deg_i;
+  long_deg_0 = long_deg_i;            //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
   
@@ -184,15 +184,18 @@ void loop() {
     /*________________________________________________________________________________*/
     /*__________________________________MEASUREMENT___________________________________*/
     /* Read and Condition Data from GPS and Altimeter */
-    readGPS();                          //function reads lat, long, alt and angle
-   
-    // I used long beach as a reference to map lat and long to xy grid in feet
-    // Assuming lat and long data are in decimal degrees, and altitude is in meters.
-    // I have no idea if the gps data is like this.    
-    x = (long_deg_i - long_deg_0)*301837;
-    y = (lat_deg_i - lat_deg_0)*196850;
+    readSTATE();                          //function reads lat, long, alt and angle
+
     
-    z = (alt_i - alt_0)*3.28;           //may be better to read from barometer
+    // if millis() or timer wraps around, reset it
+    if (timer > millis())  timer = millis();
+
+    // proceed to calculations every T_SAMP (ms)
+    // I bet there is a better way to do this...
+    if (millis() - timer > T_SAMP) { 
+    timer = millis(); // reset the timer
+
+    transform_coordinates();            //convert lat, long and altitude to xyz in feet    
 
     /* Filter the state measurements by calling iir_2() */
     //leave this out for initial tests
@@ -233,28 +236,17 @@ void loop() {
     /*________________________________________________________________________________*/
     /*______________________________OUTPUT CONDITIONING_______________________________*/
 
-    // Clipping for actuation signals:
-    if(ser_val < -50)       {ser_val = -50; }  
-    else if(ser_val > 50)   {ser_val = 50; }
-    else                 
-
-    if(fan_val < 0)         {fan_val = 0; }
-    else if (fan_val > 1000){fan_val = 1000; }
-    else
-    
-    //mapping below is for int valued inputs
-    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
-    ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
-    
+    output_conditioning();
+        
     fan.writeMicroseconds(fan_val);                // write pwm 
     ser.writeMicroseconds(ser_val);                // write pwm    
+    }
 }
 //-------------------------------------END LOOP----------------------------------------
 //-------------------------------------------------------------------------------------
 
 
 
-//-------------------------------------------------------------------------------------
 //--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
 double iir_2(double input, double buff[2], double a[3], double b[3]){
 
@@ -277,12 +269,11 @@ buff[0] = in_sum;                   // shift input accumulator value into w[n-1]
 
 return out_sum;                     // return the filtered output
 }
-//------------------------------------------------------------------------------------
-//------------------------------------------------------------------------------------
 
-//------------------------------------------------------------------------------------
+
+
 //------------------------------GPS READING FUNCTION----------------------------------
-void readGPS(){
+void readSTATE(){
    // gps data has to be read and parsed. I think since we are using the ISR, we don't
     // need to worry about the thing immediately below
     if (! usingInterrupt) {
@@ -298,41 +289,56 @@ void readGPS(){
       // a tricky thing here is if we print the NMEA sentence, or data
       // we end up not listening and catching other sentences! 
       // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-      //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
+      //Serial.println(GPS.lastNMEA());   // sets the newNMEAreceived() flag to false
   
-      if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-        return;  // we can fail to parse a sentence in which case we should just wait for another
-        }
-
-    // if millis() or timer wraps around, we'll just reset it
-    if (timer > millis())  timer = millis();
-
-
-    // proceed to data gathering and calculations every T_SAMP (ms)
-    // I bet there is a better way to do this...
-    if (millis() - timer > T_SAMP) { 
-    timer = millis(); // reset the timer
+      if (!GPS.parse(GPS.lastNMEA()))   // sets the newNMEAreceived() flag to false
+        return;  // wait for another sentence if there is failure to parse
+        }    
     
     // What is the minimum of data that we need?
-    // x,y position relative to launch site
-    // altitude relative to launch site
-    // bearing angle     
+    // --x,y position relative to launch site
+    // --altitude relative to launch site
+    // --bearing angle     
     long_deg_i =  (double)GPS.longitudeDegrees;
     lat_deg_i =   (double)GPS.latitudeDegrees; 
-    angle =       (int)GPS.angle;          //don't know if NED or ENU
+    angle =       (int)GPS.angle;               //assuming NED for now
     alt_i =       (double)GPS.altitude; 
-    // I don't know for sure if this type conversion is valid
-
+    
     // if angle is in ENU, uncomment the following:
     // angle = angle - 90;
     // angle = -angle;
     // angle = angle%360;
-    }
 }
-//---------------------------------------------------------------------------------
-//---------------------------------------------------------------------------------
 
 
+//------------------------------OUTPUT CONDITIONING------------------------------------
+void output_conditioning(){
+  // Clipping for actuation signals:
+    if(ser_val < -50)       {ser_val = -50; }  
+    else if(ser_val > 50)   {ser_val = 50; }
+    else                 
+
+    if(fan_val < 0)         {fan_val = 0; }
+    else if (fan_val > 1000){fan_val = 1000; }
+    else
+    
+    //mapping below is for int valued inputs
+    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
+    ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
+}
+
+void transform_coordinates(){
+  // I used long beach as a reference to map lat and long to xy grid in feet
+    // Assuming lat and long data are in decimal degrees, and altitude is in meters.
+    // I have no idea if the gps data is like this.    
+    x = (long_deg_i - long_deg_0)*301837;
+    y = (lat_deg_i - lat_deg_0)*196850;
+    
+    z = (alt_i - alt_0)*3.28;           //may be better to read from barometer
+}
+
+
+//-----------------------------WHAT QUADRANT ARE WE IN?-------------------------------
 int quadrant(double x, double y){
   int product = 0;
   int sum = 0;
