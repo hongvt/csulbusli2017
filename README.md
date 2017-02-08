@@ -20,26 +20,26 @@ I am writing the Arduino sketch for the board Pro Mini,  because that is all I h
 	*filter data if necessary (IIR filter function included)
 	*calculate distance squared (faster to calculate than a square root)
 	*calculate rate of descent (with IIR derivative filter)
-
+	*calculate control effort
+	*write pwm to servo and fan
 ---
 ###CONTROLLER
 
-1. space around launch site divided into 8 45 degree pie shaped regions--region number determines desired angle over ground.      
-
----
--write pwm to servo and fan
+	1. Space around launch site divided into 8 45 degree pie shaped regions--region number determines desired angle over ground.      
+	2. Once near launch site, controller will act to maintain a predefined distance from a target.
+	3. Altitude control will be separate, and determined by the time.
 }
 
 ##CONSIDERATIONS:
 
-GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
+	*GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
 
 
 ##LIBRARIES:
 
-Servo.h  
-Adafruit_GPS.h  
-Wire.h     ----> I believe the barometer is I2c
+	*Servo.h  
+	*Adafruit_GPS.h  
+	*Wire.h     ----> I believe the barometer is I2c
 
 
 ##ALSO:
