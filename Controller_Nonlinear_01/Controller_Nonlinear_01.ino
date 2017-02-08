@@ -49,7 +49,7 @@ Adafruit_GPS GPS(&mySerial);
 
 
 // GPSECHO -> 'false' turns off echoing. 'true' turns it on
-#define GPSECHO  false
+#define GPSECHO  true
 
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
@@ -332,23 +332,44 @@ void transform_coordinates(){
     // Assuming lat and long data are in decimal degrees, and altitude is in meters.
     // I have no idea if the gps data is like this.    
     x = (long_deg_i - long_deg_0)*301837;
-    y = (lat_deg_i - lat_deg_0)*196850;
-    
+    y = (lat_deg_i - lat_deg_0)*196850;    
     z = (alt_i - alt_0)*3.28;           //may be better to read from barometer
 }
 
 
 //-----------------------------WHAT REGION ARE WE IN?-------------------------------
-int region(double x, double y){
-  int reg = 0;
+int region(double x1, double x2){
+  int reg =     0;
+  int quad =    0;
   int product = 0;
-  int sum = 0;
-  int difference = 0;
-  x = int(x);
-  y = int(y);
+  int sum =     0;
+  int diff =    0;
+  int ratio =   0;
+  
+  x1 = int(x1);                         //type conversion to speed up math
+  x2 = int(x2);
 
-// Eventually, I will figure out a way to get this thing to tell us what to do based
-// on the region that the glider is in around the origin
+  product = x1*x2;                      //elementary operations
+  sum =     x1+x2;
+  diff =    x1-x2;
+
+  if(x1==0)           {x1 = 1;}         //easy way to deal with being on axis
+  if(x2==0)           {x2 = 1;}         //don't consider it a possiblity :)
+  
+  ratio = abs(x2/x1);
+
+  if(product>0){                        //determine quadrant
+    if      (sum>0)   {quad = 1;}
+    else if (sum<0)   {quad = 3;}
+  }
+  else if(product<0){
+    if      (diff<0)  {quad = 2;}
+    else if (diff>0)  {quad = 4;}
+  }
+  else                {quad = 0;}
+  
+  reg = 2*quad;
+  if(ratio<1)         {reg = reg - 1;}   
 
   return reg;
 }
