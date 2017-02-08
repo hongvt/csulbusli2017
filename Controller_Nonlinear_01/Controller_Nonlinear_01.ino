@@ -339,26 +339,27 @@ void transform_coordinates(){
 
 //-----------------------------WHAT REGION ARE WE IN?-------------------------------
 int region(double x1, double x2){
-  int reg =     0;
-  int quad =    0;
+  //divides x and y coordinate system into 8 pie slices, 
+  //tells you which one coordinate (x1,x2) is in.
+  uint8_t reg =     0;
+  uint8_t quad =    0;
   int product = 0;
   int sum =     0;
   int diff =    0;
-  int ratio =   0;
+  unsigned int ratio =   0;
   
   x1 = int(x1);                         //type conversion to speed up math
   x2 = int(x2);
 
-  product = x1*x2;                      //elementary operations
-  sum =     x1+x2;
-  diff =    x1-x2;
-
   if(x1==0)           {x1 = 1;}         //easy way to deal with being on axis
   if(x2==0)           {x2 = 1;}         //don't consider it a possiblity :)
   
+  product = x1*x2;                      //elementary operations
+  sum =     x1+x2;
+  diff =    x1-x2;
   ratio = abs(x2/x1);
 
-  if(product>0){                        //determine quadrant
+  if(product>0){                        //determine quadrant from elementary ops
     if      (sum>0)   {quad = 1;}
     else if (sum<0)   {quad = 3;}
   }
@@ -368,10 +369,15 @@ int region(double x1, double x2){
   }
   else                {quad = 0;}
   
-  reg = 2*quad;
-  if(ratio<1)         {reg = reg - 1;}   
+  reg = 2*quad;                         //determine region from quadrant and quotient 
+  if((quad%2)==1){
+    if(ratio<1)         {reg = reg - 1;}   
+  }
+  if((quad%2)==0){
+    if(ratio>0)         {reg = reg - 1;}
+  }
 
-  return reg;
+  return reg;                           //return integer value of the region
 }
 
 

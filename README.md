@@ -13,15 +13,16 @@ SETUP:
 -set up pwm outputs
 
 LOOP:
--read gps and altimeter
-    -->need to figure out best way to do this -- the GPS has altitude data -- must investigate this.
+-read gps and altimeter    
 -convert sensor data to xyz coordinates
 -filter data if necessary (IIR filter function included)
 -calculate distance squared (faster to calculate than a square root)
 -calculate rate of descent (with IIR derivative filter)
 
 ----CONTROLLER----
-**multiple options
+1. space around launch site divided into 8 45 degree pie shaped regions.
+	--region number determines desired angle over ground.      
+
 
 -write pwm to servo and fan
 
