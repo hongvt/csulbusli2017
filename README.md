@@ -12,7 +12,7 @@ SETUP:
 -light status lights to verify functionality of instruments
 -set up pwm outputs
 
-LOOP:
+LOOP:{
 -read gps and altimeter    
 -convert sensor data to xyz coordinates
 -filter data if necessary (IIR filter function included)
@@ -20,21 +20,24 @@ LOOP:
 -calculate rate of descent (with IIR derivative filter)
 
 ----CONTROLLER----
+
 1. space around launch site divided into 8 45 degree pie shaped regions.
 	--region number determines desired angle over ground.      
 
 
 -write pwm to servo and fan
-
+}
 
 CONSIDERATIONS:
+
 GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
 
 
 LIBRARIES:
-<Servo.h>
-<Adafruit_GPS.h>
-<Wire.h>      ----> I believe the barometer is I2c
+
+Servo.h
+Adafruit_GPS.h
+Wire.h     ----> I believe the barometer is I2c
 
 
 ALSO:
