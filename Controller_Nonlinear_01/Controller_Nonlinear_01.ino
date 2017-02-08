@@ -340,6 +340,7 @@ void transform_coordinates(){
 
 //-----------------------------WHAT REGION ARE WE IN?-------------------------------
 int region(double x, double y){
+  int reg = 0;
   int product = 0;
   int sum = 0;
   int difference = 0;
@@ -349,7 +350,7 @@ int region(double x, double y){
 // Eventually, I will figure out a way to get this thing to tell us what to do based
 // on the region that the glider is in around the origin
 
-  return region;
+  return reg;
 }
 
 
