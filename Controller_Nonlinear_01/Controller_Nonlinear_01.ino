@@ -20,19 +20,36 @@
 
 /***************************************************************************/
 /* GPS Things */
-//Connect GPS Power and ground, 
-//Connect GPS TX to pin3
-//Connect GPS RX to pin2
+// If you're using a GPS module:
+// Connect the GPS Power pin to 5V
+// Connect the GPS Ground pin to ground
+// If using software serial (sketch example default):
+//   Connect the GPS TX (transmit) pin to Digital 3
+//   Connect the GPS RX (receive) pin to Digital 2
+// If using hardware serial (e.g. Arduino Mega):
+//   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
+//   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
 
-SoftwareSerial mySerial(3,2);
-// for hardware serial, comment out softwareserial thing,
-// and uncomment the hardwareserial thing below:
+// If you're using the Adafruit GPS shield, change 
+// SoftwareSerial mySerial(3, 2); -> SoftwareSerial mySerial(8, 7);
+// and make sure the switch is set to SoftSerial
+
+// If using software serial, keep this line enabled
+// (you can change the pin numbers to match your wiring):
+SoftwareSerial mySerial(3, 2);
+
+// If using hardware serial (e.g. Arduino Mega), comment out the
+// above SoftwareSerial line, and enable this line instead
+// (you can change the Serial number to match your wiring):
+
 //HardwareSerial mySerial = Serial1;
+
 
 Adafruit_GPS GPS(&mySerial);
 
+
 // GPSECHO -> 'false' turns off echoing. 'true' turns it on
-#define GPSECHO  true
+#define GPSECHO  false
 
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
@@ -180,13 +197,10 @@ uint32_t timer = millis();
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
-
-    /*________________________________________________________________________________*/
     /*__________________________________MEASUREMENT___________________________________*/
     /* Read and Condition Data from GPS and Altimeter */
-    readSTATE();                          //function reads lat, long, alt and angle
+    readSTATE();                          //function reads lat, long, alt and bearing
 
-    
     // if millis() or timer wraps around, reset it
     if (timer > millis())  timer = millis();
 
@@ -208,36 +222,22 @@ void loop() {
     
     /*________________________________________________________________________________*/
     /*____________________________________CONTROL_____________________________________*/
-    /* 2 separate controllers 
-     *
-     *SIMPLE GROUND EXPERIMENT: 
-     *--start at a distance of near RADIUS from target and deploy paraglider 90 degrees
-     *--from target. Make sure you picked the right servo correction for a right handed 
-     *--circular flight path (right handed means making only left turns)
-     * Controller 1: 
-     */
      error_dist = RADIUS_MAX*RADIUS_MAX - dist;         // calculate distance error
-
-     /*
-      * Controller 1: Turning Radius
-      */
+     
+      /* Controller 1: Turning Radius */
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX)
-        {ser_val = error_dist*10;}              // Turn left/right -- choose for simple exp
+        {ser_val = error_dist*10;}            
      else {ser_val = ser_val;}
      
-     /*
-     * Controller 2: Descent Rate
-     */
-       desc = iir_2(alt_i,descbuff,ad,bd);        // calculate DESCENT rate
-       error_desc = DESCENT - desc;               // calculate DESCENT rate error
-       fan_val = iir_2(error_desc,cabuff,aca,bca); // calculate control effort   
+     /* Controller 2: Descent Rate */
+       desc = iir_2(alt_i,descbuff,ad,bd);          // calculate DESCENT rate
+       error_desc = DESCENT - desc;                 // calculate DESCENT rate error
+       fan_val = iir_2(error_desc,cabuff,aca,bca);  // calculate control effort   
            
-    /*________________________________________________________________________________*/
-    /*______________________________OUTPUT CONDITIONING_______________________________*/
+    /*____________________________________OUTPUT_______________________________________*/
 
-    output_conditioning();
-        
+    output_conditioning();        
     fan.writeMicroseconds(fan_val);                // write pwm 
     ser.writeMicroseconds(ser_val);                // write pwm    
     }
@@ -338,19 +338,18 @@ void transform_coordinates(){
 }
 
 
-//-----------------------------WHAT QUADRANT ARE WE IN?-------------------------------
-int quadrant(double x, double y){
+//-----------------------------WHAT REGION ARE WE IN?-------------------------------
+int region(double x, double y){
   int product = 0;
   int sum = 0;
   int difference = 0;
   x = int(x);
   y = int(y);
 
-  product = x*y;
-  sum = x+y;
-  difference = x-y;
-  
-  
+// Eventually, I will figure out a way to get this thing to tell us what to do based
+// on the region that the glider is in around the origin
+
+  return region;
 }
 
 
