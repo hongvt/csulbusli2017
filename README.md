@@ -1,11 +1,5 @@
 # csulbusli2017
 
-Manual override subsystem description found here:   
---> https://jeffreyscomputer.github.io/PWcomparator.html
-
-This completely bypasses MCU with a simple external circuit.  
-I am writing the Arduino sketch for the board Pro Mini,  because that is all I have on hand. If it needs to be changed, it won't be hard.
-
 ##BASIC DESCRIPTION:
 
 ###SETUP
@@ -20,7 +14,7 @@ I am writing the Arduino sketch for the board Pro Mini,  because that is all I h
 	*filter data if necessary (IIR filter function included)
 	*calculate distance squared (faster to calculate than a square root)
 	*calculate rate of descent (with IIR derivative filter)
-	*calculate control effort
+	*calculate control effort: see CONTROLLER
 	*write pwm to servo and fan
 ---
 ###CONTROLLER
@@ -32,6 +26,12 @@ I am writing the Arduino sketch for the board Pro Mini,  because that is all I h
 ##CONSIDERATIONS:
 
 	*GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
+
+##Manual override subsystem:
+description found here:   
+--> https://jeffreyscomputer.github.io/PWcomparator.html
+
+This completely bypasses MCU with a simple external circuit.  
 
 ##LIBRARIES:
 
