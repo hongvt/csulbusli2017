@@ -23,6 +23,8 @@
 	2. Once near launch site, controller will act to maintain a predefined distance from a target.
 	3. Altitude control will be separate, and determined by the time.
 
+---
+
 ##CONSIDERATIONS:
 
 	*GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
