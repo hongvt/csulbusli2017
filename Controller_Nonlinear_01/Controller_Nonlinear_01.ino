@@ -77,7 +77,8 @@ unsigned int angle_i;                     // Course over ground angle          (
 
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
-double error_dist;                        // distance error                    (ft^2)     
+double error_dist;                        // distance error                    (ft^2) 
+double error_angle;                       // angle error                        (deg)    
 double error_desc;                        // DESCENT rate error                (ft/s)
 
 uint8_t region_i;                         // region based on x and y coordinates ()
@@ -220,15 +221,20 @@ void loop() {
     
     /*____________________________________CONTROL_____________________________________*/
      error_dist = RADIUS_MAX*RADIUS_MAX - dist;     // calculate distance error
-     
-     region_i = region(x,y);                        // determine what region we are in
-     angle_c = bearing_command(region_i);           // determine what angle we should be going
+      /* Controller 0: long distance */
+     if(dist > 1.5*RADIUS_MAX*RADIUS_MAX){
+      region_i = region(x,y);                       // determine what region we are in
+      angle_c = bearing_command(region_i);          // determine what angle we should be going
+      error_angle = angle_c - angle_i;              // calculate angular error
+      ser_val = error_angle*5;
+     }
+     else if(dist < 1.5*RADIUS_MAX*RADIUS_MAX){
       /* Controller 1: Turning Radius */
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX)
         {ser_val = error_dist*10;}            
      else {ser_val = ser_val;}
-     
+     }
      /* Controller 2: Descent Rate */
        desc = iir_2(alt_i,descbuff,ad,bd);          // calculate DESCENT rate
        error_desc = DESCENT - desc;                 // calculate DESCENT rate error
