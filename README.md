@@ -29,7 +29,7 @@
 
 	*GPS limits the speed -- max sample rate is 10Hz, and max rate of gps fix is 5Hz.
 
-##Manual override subsystem:
+##MANUAL OVERRIDE SUBSYSTEM:
 description found here:   
 --> https://jeffreyscomputer.github.io/PWcomparator.html
 
