@@ -73,16 +73,20 @@ double alt_i;                             // current altitude              (m)
 double x;                                 // x position (conditioned longitutde)(ft)
 double y;                                 // y position (conditioned latitude)  (ft)
 double z;                                 // z position (conditioned altitude)  (ft)
-int angle;                                // Course over ground angle          (deg)
+unsigned int angle_i;                     // Course over ground angle          (deg)
 
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
 double error_dist;                        // distance error                    (ft^2)     
 double error_desc;                        // DESCENT rate error                (ft/s)
 
+uint8_t region_i;                         // region based on x and y coordinates ()
+
 const double RADIUS_MAX = 300;            // desired RADIUS from launch site (ft) 
 const double RADIUS_MIN = 200;            // minimum desired RADIUS from launch site (ft)
 const double DESCENT = 5;                 // desired DESCENT rate (ft/s)
+
+unsigned int angle_c;                     // desired bearing angle
 
 
 /********************** IIR filter constants and arrays **********************/
@@ -197,33 +201,28 @@ uint32_t timer = millis();
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
-    /*__________________________________MEASUREMENT___________________________________*/
-    /* Read and Condition Data from GPS and Altimeter */
-    readSTATE();                          //function reads lat, long, alt and bearing
+    /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
+    readSTATE();                              // function reads lat, long, alt, bearing
 
-    // if millis() or timer wraps around, reset it
-    if (timer > millis())  timer = millis();
-
+    if (timer > millis())  timer = millis();  // reset timer if we get wrap around
     // proceed to calculations every T_SAMP (ms)
-    // I bet there is a better way to do this...
     if (millis() - timer > T_SAMP) { 
-    timer = millis(); // reset the timer
+    timer = millis();                         // I bet there is a better way to do this
 
-    transform_coordinates();            //convert lat, long and altitude to xyz in feet    
+    transform_coordinates();                  // convert lat, long and alt to xyz in (ft)    
 
     /* Filter the state measurements by calling iir_2() */
-    //leave this out for initial tests
     //x = iir_2(x,xbuff,a,b);
     //y = iir_2(y,ybuff,a,b);
     //z = iir_2(z,zbuff,a,b);
 
-    /* Calculate Distance Squared from the Origin */
-    dist = x*x + y*y;
+    dist = x*x + y*y;                         // calcualte distance^2 from the origin
     
-    /*________________________________________________________________________________*/
     /*____________________________________CONTROL_____________________________________*/
-     error_dist = RADIUS_MAX*RADIUS_MAX - dist;         // calculate distance error
+     error_dist = RADIUS_MAX*RADIUS_MAX - dist;     // calculate distance error
      
+     region_i = region(x,y);                        // determine what region we are in
+     angle_c = bearing_command(region_i);           // determine what angle we should be going
       /* Controller 1: Turning Radius */
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX)
@@ -236,39 +235,13 @@ void loop() {
        fan_val = iir_2(error_desc,cabuff,aca,bca);  // calculate control effort   
            
     /*____________________________________OUTPUT_______________________________________*/
-
     output_conditioning();        
-    fan.writeMicroseconds(fan_val);                // write pwm 
-    ser.writeMicroseconds(ser_val);                // write pwm    
+    fan.writeMicroseconds(fan_val);                 // write pwm 
+    ser.writeMicroseconds(ser_val);                 // write pwm    
     }
 }
 //-------------------------------------END LOOP----------------------------------------
 //-------------------------------------------------------------------------------------
-
-
-
-//--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
-double iir_2(double input, double buff[2], double a[3], double b[3]){
-
-double in_sum = 0;                  // input accumulator  
-double out_sum = 0;                 // output accumulator
-//static double buff[2] = {};       // delayed intermediate signals (w[n])
-
-//the input accumulator recieves the input plus the scaled delayed intermediate sigs
-in_sum = input;                    
-in_sum = in_sum - (a[1]*buff[0]);
-in_sum = in_sum - (a[2]*buff[1]);
-
-//the output accumulator recieves scaled delayed intermediate signals
-out_sum = b[0]*in_sum;
-out_sum = out_sum + (b[1]*buff[0]);
-out_sum = out_sum + (b[2]*buff[1]);
-
-buff[1] = buff[0];                  // shift w[n-1] to w[n-2]
-buff[0] = in_sum;                   // shift input accumulator value into w[n-1]
-
-return out_sum;                     // return the filtered output
-}
 
 
 
@@ -295,38 +268,21 @@ void readSTATE(){
         return;  // wait for another sentence if there is failure to parse
         }    
     
-    // What is the minimum of data that we need?
+    // What is the minimum data that we need?
     // --x,y position relative to launch site
     // --altitude relative to launch site
     // --bearing angle     
     long_deg_i =  (double)GPS.longitudeDegrees;
     lat_deg_i =   (double)GPS.latitudeDegrees; 
-    angle =       (int)GPS.angle;               //assuming NED for now
+    angle_i =     (int)GPS.angle;               //assuming NED for now
     alt_i =       (double)GPS.altitude; 
     
     // if angle is in ENU, uncomment the following:
-    // angle = angle - 90;
-    // angle = -angle;
-    // angle = angle%360;
+    // angle_i = (360-(angle_i-90))%360;
 }
 
 
-//------------------------------OUTPUT CONDITIONING------------------------------------
-void output_conditioning(){
-  // Clipping for actuation signals:
-    if(ser_val < -50)       {ser_val = -50; }  
-    else if(ser_val > 50)   {ser_val = 50; }
-    else                 
-
-    if(fan_val < 0)         {fan_val = 0; }
-    else if (fan_val > 1000){fan_val = 1000; }
-    else
-    
-    //mapping below is for int valued inputs
-    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
-    ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
-}
-
+//--------------------TRANSFROM LONG, LAT, ALTITUDE TO X,Y,Z--------------------------
 void transform_coordinates(){
   // I used long beach as a reference to map lat and long to xy grid in feet
     // Assuming lat and long data are in decimal degrees, and altitude is in meters.
@@ -337,9 +293,42 @@ void transform_coordinates(){
 }
 
 
-//-----------------------------WHAT REGION ARE WE IN?-------------------------------
+//--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
+double iir_2(double input, double buff[2], double a[3], double b[3]){
+
+double in_sum = 0;                  // input accumulator  
+double out_sum = 0;                 // output accumulator
+//static double buff[2] = {};       // delayed intermediate signals (w[n])
+
+//the input accumulator recieves the input plus the scaled delayed intermediate sigs
+in_sum = input;                    
+in_sum = in_sum - (a[1]*buff[0]);
+in_sum = in_sum - (a[2]*buff[1]);
+
+//the output accumulator recieves scaled delayed intermediate signals
+out_sum = b[0]*in_sum;
+out_sum = out_sum + (b[1]*buff[0]);
+out_sum = out_sum + (b[2]*buff[1]);
+
+buff[1] = buff[0];                  // shift w[n-1] to w[n-2]
+buff[0] = in_sum;                   // shift input accumulator value into w[n-1]
+
+return out_sum;                     // return the filtered output
+}
+
+
+//-----------------------------WHAT REGION ARE WE IN?----------------------------------
 int region(double x1, double x2){
   //divides x and y coordinate system into 8 pie slices, 
+  //------------------//
+  //        y         //
+  //  \     |     /   //
+  //    \ 3 | 2 /     //
+  //____4_\_|_/_1___x //
+  //    5 / | \ 8     //
+  //    / 6 | 7 \     //
+  //  /     |     \   //
+  //------------------//
   //tells you which one coordinate (x1,x2) is in.
   uint8_t reg =     0;
   uint8_t quad =    0;
@@ -369,7 +358,7 @@ int region(double x1, double x2){
   }
   else                {quad = 0;}
   
-  reg = 2*quad;                         //determine region from quadrant and quotient 
+  reg = 2*quad;                         // determine region from quadrant and quotient 
   if((quad%2)==1){
     if(ratio<1)         {reg = reg - 1;}   
   }
@@ -377,8 +366,39 @@ int region(double x1, double x2){
     if(ratio>0)         {reg = reg - 1;}
   }
 
-  return reg;                           //return integer value of the region
+  return reg;                           // return integer value of the region
 }
 
+//---------------------WHAT ANGLE OVER GROUND SHOULD WE BE GOING?-----------------------
+int bearing_command(int locus){
+  int ENU = 0;
+  int NED = 0;
+  //The region we find ourselves in determines what angle we ought to be going
+  //If the GPS outputs an angle over ground in ENU...
+  ENU = (45*((locus+3)%8)+22)%360;
+  NED = (360-(ENU-90))%360;
+
+  return NED;                           // remember to check if NED is the correct thing
+}
+
+
+//------------------------------OUTPUT CONDITIONING--------------------------------------
+void output_conditioning(){
+  // we have to figure out more about the physical system to properly do this
+  // making it work is just a matter of knowing the thrust characteristics of the fan
+  // and the relationship between turning radius and servo angle
+  // Clipping for actuation signals:
+    if(ser_val < -50)       {ser_val = -50; }  
+    else if(ser_val > 50)   {ser_val = 50; }
+    else                 
+
+    if(fan_val < 0)         {fan_val = 0; }
+    else if (fan_val > 1000){fan_val = 1000; }
+    else
+    
+    //mapping below is for int valued inputs
+    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
+    ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
+}
 
 

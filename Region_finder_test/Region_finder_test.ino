@@ -14,6 +14,11 @@ double y = 0;
 float omega = .01;
 float t = 0;
 
+uint8_t region_i = 0;
+unsigned int ENU = 0;
+unsigned int NED = 0;
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -23,19 +28,26 @@ void loop() {
 
   if(t > 10000) {t = 0;}
   t=t+.9;
-  delay(2);
+  delay(20);
   
   x = 100*cos(omega*t);
   y = 100*sin(omega*t);
+
+  region_i = region(x,y);
+  ENU = (45*((region_i+3)%8)+22)%360;         //Map region to desired bearing in ENU
+  NED = (360-(ENU-90))%360;                   //convert to NED
 
  //Open up serial plotter or serial monitor to verify this works
   Serial.print(x);
   Serial.print(",");
   Serial.print(y);
   Serial.print(",");
-  Serial.println(region(x,y));
-
-}
+  Serial.print(region(x,y));
+  Serial.print(",");
+  Serial.print(ENU);
+  Serial.print(",");
+  Serial.println(NED);
+  }
 
 //-----------------------------WHAT REGION ARE WE IN?-------------------------------
 int region(double x1, double x2){
