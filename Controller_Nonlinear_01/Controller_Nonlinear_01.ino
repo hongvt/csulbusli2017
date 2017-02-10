@@ -89,6 +89,11 @@ const double DESCENT = 5;                 // desired DESCENT rate (ft/s)
 
 unsigned int angle_c;                     // desired bearing angle
 
+/*Controller gains*/
+double K_ANGLE = 5;
+double K_DIST = 5;
+double K_DESC = 5; 
+
 
 /********************** IIR filter constants and arrays **********************/
 /* Filter Coefficients for xyz position */
@@ -226,19 +231,19 @@ void loop() {
       region_i = region(x,y);                       // determine what region we are in
       angle_c = bearing_command(region_i);          // determine what angle we should be going
       error_angle = angle_c - angle_i;              // calculate angular error
-      ser_val = error_angle*5;
+      ser_val = error_angle*K_ANGLE;
      }
      else if(dist < 1.5*RADIUS_MAX*RADIUS_MAX){
       /* Controller 1: Turning Radius */
      if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
      else if (dist > RADIUS_MAX*RADIUS_MAX)
-        {ser_val = error_dist*10;}            
+        {ser_val = error_dist*K_DIST;}            
      else {ser_val = ser_val;}
      }
      /* Controller 2: Descent Rate */
        desc = iir_2(alt_i,descbuff,ad,bd);          // calculate DESCENT rate
        error_desc = DESCENT - desc;                 // calculate DESCENT rate error
-       fan_val = error_desc*5;  // calculate control effort   
+       fan_val = error_desc*K_DESC;  // calculate control effort   
            
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();        
