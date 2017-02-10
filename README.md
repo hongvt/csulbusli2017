@@ -22,23 +22,25 @@ Note: all this assumes the raspberry pi computer vision thing is totally separat
 			-calculate distance squared (faster than calculating square root)
 			-calculate rate of descent (with IIR derivative filter)
 			-calculate control effort: see "CONTROLLER"
-			-write pwm to servo and fan
+	-write appropriate control signals to stepper, servo and fan
 ---
 ###CONTROLLER
 
 A feedback controller attempts to get the current state to a desired state.    
 It does so by operating on **error signals**. Various error signals are calculated:
-	-**distance error** -- difference btwn desired and actual distance to a target
-	-**bearing error** -- " " " " " angle over ground, or bearing angle
-	-**descent rate error** -- " " " " " descent rate
+	
+	- **distance error** -- difference btwn desired and actual distance to a target
+	- **bearing error** -- " " " " " angle over ground, or bearing angle
+	- **descent rate error** -- " " " " " descent rate
+
 The error signal being minimized will depend on:
+	
 	-desired flight characteristics
 	-how far the glider is from the launch site
 
 These are the scenarios I have considered, and how I think they can be dealt with:
+	
 	1. The glider deploys much more than 300ft from the target
-		-
-Space around launch site divided into 8 45 degree pie shaped regions--region number determines desired angle over ground.      
 	2. Once near launch site, controller will act to maintain a predefined distance from a target.
 	3. Altitude control will be separate, and determined by the time.
 
