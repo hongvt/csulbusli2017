@@ -41,6 +41,7 @@ The error signal being minimized will depend on:
 
 The controller presupposes a **system model** which emulates reality in some way.  
 The elements of the system are modeled like so:
+
 	-servo steering mechanism:
 		-input: pwm signal
 		-output: well defined turning radius
