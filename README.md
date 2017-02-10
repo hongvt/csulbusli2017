@@ -5,7 +5,8 @@
 Note: all this assumes the raspberry pi computer vision thing is totally separate.
 
 ###SETUP
-	-initialize stepper, esc and servo
+	-initialize instruments: gps and altimeter
+	-initialize actuators: stepper, esc and servo
 	-read instruments: gps and altimeter upon reset, store in variables.
 	-light status lights to verify functionality of instruments
 
@@ -38,11 +39,49 @@ The error signal being minimized will depend on:
 	-desired flight characteristics
 	-how far the glider is from the launch site
 
+The controller presupposes a **system model** which emulates reality in some way.  
+The elements of the system are modeled like so:
+	-servo steering mechanism:
+		-input: pwm signal
+		-output: well defined turning radius
+		-response: first order (r(t) = 1-exp(-at))
+	-fan propulsion/pitch control subsystem:
+		-input: pwm signal
+		-output: well defined pitch and descent rate
+		-response: also first order
+	-The coordinate system: two different models for different situations:
+		1. xy plane broken into 8 45 degree pie slices with target at the center
+		2. xy location reduced to a one dimensional distance from a target
+
 These are the scenarios I have considered, and how I think they can be dealt with:
 	
-	1. The glider deploys much more than 300ft from the target
-	2. Once near launch site, controller will act to maintain a predefined distance from a target.
-	3. Altitude control will be separate, and determined by the time.
+	1. The glider deploys much more than 300ft from the target:
+		-position mapped to one of 8 pie slice regions
+		-region determines desired angle over ground
+		-calculate bearing error
+		-drive servo based on error: servo angle = K*(bearing error)
+	2. The glider is within 300 ft of launch site:
+		-position is exemplified by the distance from the target
+		-calcualte distance error
+		-conditional test:
+			-if within X ft of target, servo angle set to zero
+			-if within Y ft of target, control servo angle like: servo angle = K*(distance error) 
+			-if very far from target again, do control 1. again.
+		-NOTE: decide on whether you want to make left or right turns
+	3. A good amount of time must be spent scanning the area while taking pictures:
+		-decide on flightpath or some quality of a desired flightpath
+		-use the 8 regions to calculate alternate desired bearing angles
+			-my simplest idea is just to spiral inward, or outward
+
+Altitude control will be happening independently. It will be accomplished like this:
+	
+	-calculate descent rate error
+	-apply actuation to fan based on this: fan speed = K*(descent rate error)
+
+**NOTE**: I did not do any fancy compensation: just proportional control. However, with the    
+IIR filter I included, any classical control compensator is easily realizable -- see the    
+Matlab script I put in this repo. The implementation would replace something like    
+fan speed = K*(descent rate error) with fan speed = iir2(descent rate error, buff, a, b)
 
 ---
 
