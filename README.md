@@ -47,12 +47,16 @@ The error signal being minimized will depend on:
 The controller presupposes a **system model** which emulates reality in some way.  
 The elements of the system are modeled like so:
 
-	-servo steering mechanism:
-		-input: pwm signal
+	-servo steering mechanism with respect to turning radius:
+		-input: desired turning radius (pwm signal)
 		-output: well defined turning radius
 		-response: first order (r(t) = 1-exp(-at))
+	-servo steering mechanism with respect to angle over ground:
+		-input: desired angle over ground (pwm signal)
+		-output: some angle over ground (bearing)
+		-response: second order -- integral of r(t)
 	-fan propulsion/pitch control subsystem:
-		-input: pwm signal
+		-input: desired descent rate (pwm signal)
 		-output: well defined pitch and descent rate
 		-response: also first order
 	-The coordinate system: two different models for different situations:
