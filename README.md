@@ -2,7 +2,12 @@
 
 ##BASIC DESCRIPTION:
 
-Note: all this assumes the raspberry pi computer vision thing is totally separate.
+Note: all this assumes the raspberry pi computer vision thing is totally separate.    
+Also, the code in Controller_Nonlinear_01.ino is incomplete! still needs:
+
+	-stepper motor control code
+	-computed controller gains (Ki)
+	-parameters for servo and fan, to keep performance up to scratch
 
 ###SETUP
 	-initialize instruments: gps and altimeter

@@ -238,7 +238,7 @@ void loop() {
      /* Controller 2: Descent Rate */
        desc = iir_2(alt_i,descbuff,ad,bd);          // calculate DESCENT rate
        error_desc = DESCENT - desc;                 // calculate DESCENT rate error
-       fan_val = iir_2(error_desc,cabuff,aca,bca);  // calculate control effort   
+       fan_val = error_desc*5;  // calculate control effort   
            
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();        
