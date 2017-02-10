@@ -29,9 +29,9 @@ Note: all this assumes the raspberry pi computer vision thing is totally separat
 A feedback controller attempts to get the current state to a desired state.    
 It does so by operating on **error signals**. Various error signals are calculated:
 	
-	- **distance error** -- difference btwn desired and actual distance to a target
-	- **bearing error** -- " " " " " angle over ground, or bearing angle
-	- **descent rate error** -- " " " " " descent rate
+	-__distance error__ -- difference btwn desired and actual distance to a target
+	-__bearing error__ -- " " " " " angle over ground, or bearing angle
+	-__descent rate error__ -- " " " " " descent rate
 
 The error signal being minimized will depend on:
 	
