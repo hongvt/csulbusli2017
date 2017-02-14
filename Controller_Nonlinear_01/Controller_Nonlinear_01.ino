@@ -231,13 +231,15 @@ void loop() {
       region_i = region(x,y);                       // determine what region we are in
       angle_c = bearing_command(region_i);          // determine what angle we should be going
       error_angle = angle_c - angle_i;              // calculate angular error
-      ser_val = error_angle*K_ANGLE;
+      error_angle = ang_err_condition(error_angle); // wrap angular error
+      
+      ser_val = error_angle*K_ANGLE;                // apply compensation proporional to error
      }
      else if(dist < 1.5*RADIUS_MAX*RADIUS_MAX){
       /* Controller 1: Turning Radius */
-     if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}
+     if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}  //go straight if within RADIUS_MIN
      else if (dist > RADIUS_MAX*RADIUS_MAX)
-        {ser_val = error_dist*K_DIST;}            
+        {ser_val = error_dist*K_DIST;}                //apply compensation if beyond RADIUS_MAX           
      else {ser_val = ser_val;}
      }
      /* Controller 2: Descent Rate */
@@ -392,6 +394,15 @@ int bearing_command(int locus){
   return NED;                           // remember to check if NED is the correct thing
 }
 
+//-------------------------------CONDITION ANGLE ERROR----------------------------------
+int ang_err_condition(int err){
+  //wraps angle error around so |error| is never more than 180. 
+  if(err >= 180)            {err = err - 360;}
+  else if(err <= -180)      {err = err + 360;}
+  else                      {err = err;}
+  
+  return err;
+}
 
 //------------------------------OUTPUT CONDITIONING--------------------------------------
 void output_conditioning(){
