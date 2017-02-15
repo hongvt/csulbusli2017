@@ -204,28 +204,25 @@ void useInterrupt(boolean v) {
 }
 //-------------------------------------------------------------------------------------
 
-uint32_t timer = micros();
+uint32_t timer = millis();
 
 
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
+    /*________________________________SAMPLING TIMER___________________________________*/
+    if (timer > millis())  timer = millis();  // wrap timer reset
+    if (millis() - timer >= T_SAMP) {          // oce we've counted up to T_SAMP, do stuff
+    timer = millis();                       
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
     readSTATE();                              // function reads lat, long, alt, bearing
-
-    if (timer > micros())  timer = micros();  // reset timer if we get wrap around
-    // proceed to calculations every T_SAMP (ms)
-    if (micros() - timer > T_SAMP*1000) { 
-    timer = micros();                         // I bet there is a better way to do this
-
     transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
     /* Filter the state measurements by calling iir_2() */
     //x = iir_2(x,xbuff,a,b);
     //y = iir_2(y,ybuff,a,b);
     //z = iir_2(z,zbuff,a,b);
     desc = iir_2(z,descbuff,ad,bd);                   // estimate current descent rate
-    dist = x*x + y*y;                                 // calcualte distance^2 from the origin
-     
+    dist = x*x + y*y;                                 // calcualte distance^2 from the origin     
      /*____________________________________CONTROL_____________________________________*/
     controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
     switch(controller){
