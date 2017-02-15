@@ -20,9 +20,6 @@
 
 /***************************************************************************/
 /* GPS Things */
-// If you're using a GPS module:
-// Connect the GPS Power pin to 5V
-// Connect the GPS Ground pin to ground
 // If using software serial (sketch example default):
 //   Connect the GPS TX (transmit) pin to Digital 3
 //   Connect the GPS RX (receive) pin to Digital 2
@@ -30,23 +27,10 @@
 //   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
 //   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
 
-// If you're using the Adafruit GPS shield, change 
-// SoftwareSerial mySerial(3, 2); -> SoftwareSerial mySerial(8, 7);
-// and make sure the switch is set to SoftSerial
-
-// If using software serial, keep this line enabled
-// (you can change the pin numbers to match your wiring):
 SoftwareSerial mySerial(3, 2);
-
-// If using hardware serial (e.g. Arduino Mega), comment out the
-// above SoftwareSerial line, and enable this line instead
-// (you can change the Serial number to match your wiring):
-
 //HardwareSerial mySerial = Serial1;
 
-
 Adafruit_GPS GPS(&mySerial);
-
 
 // GPSECHO -> 'false' turns off echoing. 'true' turns it on
 #define GPSECHO  true
@@ -69,37 +53,32 @@ double long_deg_0;                        // longitude measured upon reset(deg)
 double long_deg_i;                        // current longitude            (deg)
 double alt_0;                             // altitude measured upon reset  (m)
 double alt_i;                             // current altitude              (m)
-
+unsigned int angle_i;                     // Course over ground angle     (deg)
 double x;                                 // x position (conditioned longitutde)(ft)
 double y;                                 // y position (conditioned latitude)  (ft)
 double z;                                 // z position (conditioned altitude)  (ft)
-unsigned int angle_i;                     // Course over ground angle          (deg)
-
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
+uint8_t region_i;                         // region based on x and y coordinates ()
+/*--ERROR SIGNALS--*/
 double error_dist;                        // distance error                    (ft^2) 
 double error_angle;                       // angle error                        (deg)    
 double error_desc;                        // DESCENT rate error                (ft/s)
-
-uint8_t region_i;                         // region based on x and y coordinates ()
-
+/*--CONTROL INPUTS--*/
+unsigned int angle_c;                     // desired bearing angle
 const double RADIUS_MAX = 300;            // desired RADIUS from launch site (ft) 
 const double RADIUS_MIN = 200;            // minimum desired RADIUS from launch site (ft)
 const double DESCENT_1 = 1;               // desired DESCENT rate (ft/s)
 const double DESCENT_2 = 5;
 const double SER_BIAS = 10;               // servo position for desired turning radius
-
-unsigned int angle_c;                     // desired bearing angle
-
-/*Controller gains*/
+/*--CONTROLLER GAINS--*/
 double K_ANGLE = 5;
 double K_DIST = 5;
 double K_DESC = 5; 
-
+/*--CONTROLLER SELECTOR--*/
 uint8_t controller;
-
 /********************** IIR filter constants and arrays **********************/
-/* Filter Coefficients for xyz position */
+/*--Filter Coefficients for xyz position, descent rate and compensation--*/
 //these assume a sampling frequency of 5Hz... use Matlab script to calculate
 double a[3] = {1, -1.077, 0.2899};        // 2d position data filter feedback
 double b[3] = {0.05325, 0.1065, 0.05325}; // 2d position data filter feedforward
@@ -109,18 +88,16 @@ double acs[3] = {1,1,1};                  // steering controller feedback
 double bcs[3] = {1,1,1};                  // steering controller feedforward
 double aca[3] = {1,1,1};                  // altitude controller feedback
 double bca[3] = {1,1,1};                  // altitude controller feedforward
-/* Buffers */
-static double xbuff[2] = {};              // Buffers for intermediate values
-static double ybuff[2] = {};
-static double zbuff[2] = {};
-static double descbuff[2] = {};
-
-static double csbuff[2] = {};
-static double cabuff[2] = {};
-
-
+/*--Buffers--*/
+static double xbuff[2] = {};              // Buffer for intermediate xs
+static double ybuff[2] = {};              // Buffer for intermediate ys
+static double zbuff[2] = {};              // Buffer for intermediate zs
+static double descbuff[2] = {};           // Buffer for intermidiate dz/dts
+static double csbuff[2] = {};             // Buffer for steering compensator
+static double cabuff[2] = {};             // Buffer for altitude compensator
+/*--SAMPLE TIME--*/
 const int T_SAMP = 200;                   // Sample period (ms)
-
+uint32_t timer = millis();                // Timer for sampler
 //-----------------------------------------------------------------------------
 //---------------------------------BEGIN SETUP---------------------------------
 void setup() {
@@ -172,7 +149,6 @@ void setup() {
 //-----------------------------------------------------------------------------------
 
 
-//-----------------------------------------------------------------------------------
 // -------- Interrupt service routine -- looks for new GPS data and stores it -------
 SIGNAL(TIMER0_COMPA_vect) {
   char c = GPS.read();
@@ -186,8 +162,6 @@ SIGNAL(TIMER0_COMPA_vect) {
     // but only one character can be written at a time. 
 #endif
 }
-
-
 // --------------------------- Interrupt enable function ------------------------------
 void useInterrupt(boolean v) {
   if (v) {
@@ -202,17 +176,13 @@ void useInterrupt(boolean v) {
     usingInterrupt = false;
   }
 }
-//-------------------------------------------------------------------------------------
-
-uint32_t timer = millis();
-
 
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
     /*________________________________SAMPLING TIMER___________________________________*/
     if (timer > millis())  timer = millis();  // wrap timer reset
-    if (millis() - timer >= T_SAMP) {          // oce we've counted up to T_SAMP, do stuff
+    if (millis() - timer >= T_SAMP) {         // oce we've counted up to T_SAMP, do stuff
     timer = millis();                       
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
     readSTATE();                              // function reads lat, long, alt, bearing
@@ -234,7 +204,7 @@ void loop() {
         error_desc = DESCENT_1 - desc;                // calculate descent rate error for phase 1
         ser_val = error_angle*K_ANGLE;
         break;
-      case 2:
+      case 2: /* Controller 2: spiral downard around launch site */
         error_desc = DESCENT_2 - desc;                // calcualte descent rate error for phase 2
         if(dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}// go straight if within RADIUS_MIN
         else if(dist > RADIUS_MAX*RADIUS_MAX){
@@ -245,7 +215,7 @@ void loop() {
       default:
         break;
     }
-      fan_val = error_desc*K_DESC;                   // calculate control effort                      
+    fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();        
     fan.writeMicroseconds(fan_val);                 // write pwm 
@@ -254,6 +224,7 @@ void loop() {
 }
 //-------------------------------------END LOOP----------------------------------------
 //-------------------------------------------------------------------------------------
+
 
 
 
@@ -293,7 +264,6 @@ void readSTATE(){
     // angle_i = (360-(angle_i-90))%360;
 }
 
-
 //--------------------TRANSFROM LONG, LAT, ALTITUDE TO X,Y,Z--------------------------
 void transform_coordinates(){
   // I used long beach as a reference to map lat and long to xy grid in feet
@@ -303,7 +273,6 @@ void transform_coordinates(){
     y = (lat_deg_i - lat_deg_0)*196850;    
     z = (alt_i - alt_0)*3.28;           //may be better to read from barometer
 }
-
 
 //--------------------------DIRECT TRANSPOSE FORM II IIR FILTER------------------------
 double iir_2(double input, double buff[2], double a[3], double b[3]){
@@ -327,7 +296,6 @@ buff[0] = in_sum;                   // shift input accumulator value into w[n-1]
 
 return out_sum;                     // return the filtered output
 }
-
 
 //-----------------------------WHAT REGION ARE WE IN?----------------------------------
 int region(double x1, double x2){
