@@ -85,7 +85,9 @@ uint8_t region_i;                         // region based on x and y coordinates
 
 const double RADIUS_MAX = 300;            // desired RADIUS from launch site (ft) 
 const double RADIUS_MIN = 200;            // minimum desired RADIUS from launch site (ft)
-const double DESCENT = 5;                 // desired DESCENT rate (ft/s)
+const double DESCENT_1 = 1;               // desired DESCENT rate (ft/s)
+const double DESCENT_2 = 5;
+const double SER_BIAS = 10;               // servo position for desired turning radius
 
 unsigned int angle_c;                     // desired bearing angle
 
@@ -94,6 +96,7 @@ double K_ANGLE = 5;
 double K_DIST = 5;
 double K_DESC = 5; 
 
+uint8_t controller;
 
 /********************** IIR filter constants and arrays **********************/
 /* Filter Coefficients for xyz position */
@@ -201,7 +204,7 @@ void useInterrupt(boolean v) {
 }
 //-------------------------------------------------------------------------------------
 
-uint32_t timer = millis();
+uint32_t timer = micros();
 
 
 //--------------------------------------------------------------------------------------
@@ -210,43 +213,42 @@ void loop() {
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
     readSTATE();                              // function reads lat, long, alt, bearing
 
-    if (timer > millis())  timer = millis();  // reset timer if we get wrap around
+    if (timer > micros())  timer = micros();  // reset timer if we get wrap around
     // proceed to calculations every T_SAMP (ms)
-    if (millis() - timer > T_SAMP) { 
-    timer = millis();                         // I bet there is a better way to do this
+    if (micros() - timer > T_SAMP*1000) { 
+    timer = micros();                         // I bet there is a better way to do this
 
-    transform_coordinates();                  // convert lat, long and alt to xyz in (ft)    
-
+    transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
     /* Filter the state measurements by calling iir_2() */
     //x = iir_2(x,xbuff,a,b);
     //y = iir_2(y,ybuff,a,b);
     //z = iir_2(z,zbuff,a,b);
-
-    dist = x*x + y*y;                         // calcualte distance^2 from the origin
-    
-    /*____________________________________CONTROL_____________________________________*/
-     error_dist = RADIUS_MAX*RADIUS_MAX - dist;     // calculate distance error
-      /* Controller 0: long distance */
-     if(dist > 1.5*RADIUS_MAX*RADIUS_MAX){
-      region_i = region(x,y);                       // determine what region we are in
-      angle_c = bearing_command(region_i);          // determine what angle we should be going
-      error_angle = angle_c - angle_i;              // calculate angular error
-      error_angle = ang_err_condition(error_angle); // wrap angular error
-      
-      ser_val = error_angle*K_ANGLE;                // apply compensation proporional to error
-     }
-     else if(dist < 1.5*RADIUS_MAX*RADIUS_MAX){
-      /* Controller 1: Turning Radius */
-     if (dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}  //go straight if within RADIUS_MIN
-     else if (dist > RADIUS_MAX*RADIUS_MAX)
-        {ser_val = error_dist*K_DIST;}                //apply compensation if beyond RADIUS_MAX           
-     else {ser_val = ser_val;}
-     }
-     /* Controller 2: Descent Rate */
-       desc = iir_2(alt_i,descbuff,ad,bd);          // calculate DESCENT rate
-       error_desc = DESCENT - desc;                 // calculate DESCENT rate error
-       fan_val = error_desc*K_DESC;  // calculate control effort   
-           
+    desc = iir_2(z,descbuff,ad,bd);                   // estimate current descent rate
+    dist = x*x + y*y;                                 // calcualte distance^2 from the origin
+     
+     /*____________________________________CONTROL_____________________________________*/
+    controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
+    switch(controller){
+      case 1: /* Controller 1: go straight toward the launch site */
+        region_i = region(x,y);                       // determine what region we arein
+        angle_c = bearing_command(region_i);          // determine angle over ground we should have
+        error_angle = angle_c - angle_i;              // calculate angle error
+        error_angle = ang_err_condition(error_angle); // wrap angle error
+        error_desc = DESCENT_1 - desc;                // calculate descent rate error for phase 1
+        ser_val = error_angle*K_ANGLE;
+        break;
+      case 2:
+        error_desc = DESCENT_2 - desc;                // calcualte descent rate error for phase 2
+        if(dist < RADIUS_MIN*RADIUS_MIN){ser_val = 0;}// go straight if within RADIUS_MIN
+        else if(dist > RADIUS_MAX*RADIUS_MAX){
+          error_dist = RADIUS_MAX*RADIUS_MAX - dist;
+          ser_val = error_dist*K_DIST;}              // apply compensation if beyond RADIUS_MAX
+        else  {ser_val = SER_BIAS;}                   // sert servo to the bias angle
+        break;
+      default:
+        break;
+    }
+      fan_val = error_desc*K_DESC;                   // calculate control effort                      
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();        
     fan.writeMicroseconds(fan_val);                 // write pwm 
