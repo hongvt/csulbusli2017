@@ -33,7 +33,7 @@ SoftwareSerial mySerial(3, 2);
 Adafruit_GPS GPS(&mySerial);
 
 // GPSECHO -> 'false' turns off echoing. 'true' turns it on
-#define GPSECHO  true
+#define GPSECHO  false
 
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
@@ -103,7 +103,7 @@ uint32_t timer = millis();                // Timer for sampler
 void setup() {
   
   /* initializations */
-  Serial.begin(115200);
+  Serial.begin(9600);
   GPS.begin(9600); 
 
   /* PWM Output Pin Setup */
@@ -111,8 +111,6 @@ void setup() {
   fan.attach(10);  
   ser.attach(11);
   
-  // remember to attach the stepper motor  
-
   /* GPS Setup */
   // uncomment to turn on recommended minimum fix data including altitude
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
