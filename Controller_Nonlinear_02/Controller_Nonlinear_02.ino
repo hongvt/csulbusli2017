@@ -38,13 +38,21 @@ Adafruit_GPS GPS(&mySerial);
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
 void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
+void readSTATE();
+void storeSTATE();
+void transform_coordinates();
+double iir_2(double, double[2], double[3], double[3]);
+int region(double, double);
+int bearing_command(int);
+int ang_err_condition(int);
+void output_conditioning();
 
 /*****************************************************************************/
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fan_val = 0;                        // fan actuation variable
-double ser_val = 0;                        // servo actuation variable
+double fan_val = 0;                       // fan actuation variable
+double ser_val = 0;                       // servo actuation variable
 
 /* Measurements and State Variables */
 double lat_deg_0;                         // latitude measured upon reset (deg)
@@ -126,22 +134,21 @@ void setup() {
   // timer0 interrupt -- tries to read GPS every 1 ms
    useInterrupt(true);
    delay(10000);
-  
-  readSTATE();
 
+  while(alt_0 == 0){
+  readSTATE();
+  storeSTATE();
   long_deg_0 = long_deg_i;            //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
-  
-  // Also, the cold start response time on the GPS is like 35 seconds. We have to make sure
-  // we spend enough time looking for data so we store good data for the launch site location
-
+  }
   
   // illuminate status LEDs to verify stuff works
   
   // ESC and Servo initialization
-
-  // Stepper motor initialization
+  fan.writeMicroseconds(1000);                 // write pwm 
+  ser.writeMicroseconds(1500);                 // write pwm  
+  
 }
 //-----------------------------------END SETUP---------------------------------------
 //-----------------------------------------------------------------------------------
@@ -178,12 +185,13 @@ void useInterrupt(boolean v) {
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
+    readSTATE();
     /*________________________________SAMPLING TIMER___________________________________*/
     if (timer > millis())  timer = millis();  // wrap timer reset
     if (millis() - timer >= T_SAMP) {         // once we've counted up to T_SAMP, do stuff
     timer = millis();                       
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
-    readSTATE();                              // function reads lat, long, alt, bearing
+    storeSTATE();                              // function reads lat, long, alt, bearing
     transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
     /* Filter the state measurements by calling iir_2() */
     //x = iir_2(x,xbuff,a,b);
@@ -249,7 +257,9 @@ void readSTATE(){
       if (!GPS.parse(GPS.lastNMEA()))   // sets the newNMEAreceived() flag to false
         return;  // wait for another sentence if there is failure to parse
         }    
-    
+}
+
+void storeSTATE(){
     // What is the minimum data that we need?
     // --x,y position relative to launch site
     // --altitude relative to launch site

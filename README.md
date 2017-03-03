@@ -5,22 +5,20 @@
 Note: all this assumes the raspberry pi computer vision thing is totally separate.    
 Also, the code in Controller_Nonlinear_01.ino is incomplete! still needs:
 
-	-stepper motor control code
 	-computed controller gains (Ki)
 	-parameters for servo and fan, to keep performance up to scratch
 
 ###SETUP
 	-initialize instruments: gps and altimeter
-	-initialize actuators: stepper, esc and servo
+	-initialize actuators: esc and servo
 	-read instruments: gps and altimeter upon reset, store in variables.
 	-light status lights to verify functionality of instruments
 
 ###LOOP
 
 	-conditional test: what part of the mission are we in?
-		1. Pre-deployment: just keep the nose cone closed.
-		2. Deployment: Step the stepper open until limit switch closes.
-		3. Wait: give the parafoil a few seconds to deploy properly
+		1. Pre-deployment: don't do anything
+		2. Deployment: wait a while for parafoil to deploy properly
 		4. Control: Do all of the following on loop:
 			-read instruments
 			-convert sensor data to xyz coordinates
@@ -110,7 +108,3 @@ This completely bypasses MCU with a simple external circuit.
 	-Servo.h  
 	-Adafruit_GPS.h  
 	-Wire.h     ----> I believe the barometer is I2c
-
-
-##ALSO:
-anyone feel free to fancy up the code when I'm done. I'm not very sophisticated.

@@ -1,9 +1,9 @@
-/********************* BASIC AUTONOMOUS CONTROL SKETCH *********************/
+/************ BASIC AUTONOMOUS CONTROL SKETCH FOR DEBUGGING **************/
 /* _TYPE: NONLINEAR ADAPTIVE CONTROLLERg
- * This sketch amounts to an autonomous controller for a simple flight path
- * for the csulbusli2017 paraglider stage.
+ * This sketch amounts to a debugger for an autonomous controller for controller 1
+ * as per the controller_nonlinear sketch in this repo
  * _FLIGHTPATH CONTROL SUBSYSTEM:
- * --INPUT: 3d position relative to launch site provided by GPS / Altimeter
+ * --INPUT: 3d position relative to launch site provided by GPS
  * --OUTPUT: servo angle and fan speed
  * _DEPLOYMENT ROUTINE SUBSYSTEM:
  * --INPUT: 2 digital signals -- start stepper, stop stepper
@@ -11,6 +11,7 @@
  * 
  * FEATURES:
  * -2nd order IIR filter function for smoothing data
+ * -a bunch of serial prints for debugging.
  */
 
 #include <Servo.h>
@@ -38,13 +39,21 @@ Adafruit_GPS GPS(&mySerial);
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
 void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
+void readSTATE();
+void storeSTATE();
+void transform_coordinates();
+double iir_2(double, double[2], double[3], double[3]);
+int region(double, double);
+int bearing_command(int);
+int ang_err_condition(int);
+void output_conditioning();
 
 /*****************************************************************************/
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fan_val = 0;                        // fan actuation variable
-double ser_val = 0;                        // servo actuation variable
+double fan_val = 0;                       // fan actuation variable
+double ser_val = 0;                       // servo actuation variable
 
 /* Measurements and State Variables */
 double lat_deg_0;                         // latitude measured upon reset (deg)
@@ -96,14 +105,15 @@ static double descbuff[2] = {};           // Buffer for intermidiate dz/dts
 static double csbuff[2] = {};             // Buffer for steering compensator
 static double cabuff[2] = {};             // Buffer for altitude compensator
 /*--SAMPLE TIME--*/
-const int T_SAMP = 1000;                  // Sample period (ms)
+const int T_SAMP = 2000;                  // Sample period (ms)
 uint32_t timer = millis();                // Timer for sampler
 //-----------------------------------------------------------------------------
 //---------------------------------BEGIN SETUP---------------------------------
 void setup() {
   
   /* initializations */
-  //Serial.begin(115200);
+  Serial.begin(115200);
+  Serial.println("testing the thingy");
   GPS.begin(9600); 
 
   /* PWM Output Pin Setup */
@@ -126,18 +136,29 @@ void setup() {
   // timer0 interrupt -- tries to read GPS every 1 ms
    useInterrupt(true);
    delay(10000);
-  
+     // while(GPS.fix!=1){
+   Serial.println(GPS.fix);
+      //  delay(100);
+    //}
+  while(alt_0 == 0){
   readSTATE();
-
+  storeSTATE();
+  Serial.print("*");
   long_deg_0 = long_deg_i;            //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
-  
-  // Also, the cold start response time on the GPS is like 35 seconds. We have to make sure
-  // we spend enough time looking for data so we store good data for the launch site location
+  }
+
+  Serial.println("\nTEST OF CONTROLLER 1: DRIVE AROUND WITH GPS OUT THE WINDOW!");
+  Serial.print("location of origin: ");
+  Serial.print(lat_deg_0); Serial.print(", "); Serial.println(long_deg_0);
+  Serial.print("altitude: ");
+  Serial.println(GPS.altitude);
+  Serial.println("data to come will be in the following format:");
+  Serial.println("x,   y,   z;");
 
   
-  // illuminate status LEDs to verify stuff works
+  // LED must illuminate only if the location in degrees measured is nonzero
   
   // ESC and Servo initialization
 
@@ -178,12 +199,13 @@ void useInterrupt(boolean v) {
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
+    readSTATE();
     /*________________________________SAMPLING TIMER___________________________________*/
     if (timer > millis())  timer = millis();  // wrap timer reset
     if (millis() - timer >= T_SAMP) {         // once we've counted up to T_SAMP, do stuff
     timer = millis();                       
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
-    readSTATE();                              // function reads lat, long, alt, bearing
+    storeSTATE();                              // function reads lat, long, alt, bearing
     transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
     /* Filter the state measurements by calling iir_2() */
     //x = iir_2(x,xbuff,a,b);
@@ -192,7 +214,8 @@ void loop() {
     desc = iir_2(z,descbuff,ad,bd);                   // estimate current descent rate
     dist = x*x + y*y;                                 // calcualte distance^2 from the origin     
      /*____________________________________CONTROL_____________________________________*/
-    controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
+    //controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
+    controller = 1;                                   // set to controller 2 for experiment
     switch(controller){
       case 1: /* Controller 1: go straight toward the launch site */
         region_i = region(x,y);                       // determine what region we arein
@@ -215,10 +238,15 @@ void loop() {
     }
     fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
     /*____________________________________OUTPUT_______________________________________*/
-    output_conditioning();     
-    
+    output_conditioning();        
     fan.writeMicroseconds(fan_val);                 // write pwm 
-    ser.writeMicroseconds(ser_val);                 // write pwm    
+    ser.writeMicroseconds(ser_val);                 // write pwm  
+     
+   //print stuff   
+      Serial.print(x,1);          Serial.print(","); 
+      Serial.print(y,1);          Serial.print(","); 
+      Serial.print(z,1);          Serial.print(",");
+      Serial.print(region_i);     Serial.println(";");
     }
 }
 //-------------------------------------END LOOP----------------------------------------
@@ -227,9 +255,10 @@ void loop() {
 
 
 
+
 //------------------------------GPS READING FUNCTION----------------------------------
 void readSTATE(){
-   // gps data has to be read and parsed. I think since we are using the ISR, we don't
+// gps data has to be read and parsed. I think since we are using the ISR, we don't
     // need to worry about the thing immediately below
     if (! usingInterrupt) {
     // read data from the GPS in the 'main loop'
@@ -248,13 +277,18 @@ void readSTATE(){
   
       if (!GPS.parse(GPS.lastNMEA()))   // sets the newNMEAreceived() flag to false
         return;  // wait for another sentence if there is failure to parse
-        }    
-    
+        }      
+}
+void storeSTATE(){
     // What is the minimum data that we need?
     // --x,y position relative to launch site
     // --altitude relative to launch site
     // --bearing angle
-    if(GPS.fix){     
+    //while(!GPS.fix){
+    //  delay(1);
+    //}
+    
+    if(GPS.fix){
     long_deg_i =  (double)GPS.longitudeDegrees;
     lat_deg_i =   (double)GPS.latitudeDegrees; 
     angle_i =     (int)GPS.angle;               //assuming NED for now
@@ -318,7 +352,7 @@ int region(double x1, double x2){
   unsigned int ratio =   0;
   
   x1 = int(x1/32);                      //type conversion to speed up math and division by 32
-  x2 = int(x2/32);                      //ensures no overflow while within one mile of origin
+  x2 = int(x2/32);                      //to ensure no overflow while within 1 mile of origin
 
   if(x1==0)           {x1 = 1;}         //easy way to deal with being on axis
   if(x2==0)           {x2 = 1;}         //don't consider it a possiblity :)

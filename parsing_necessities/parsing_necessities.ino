@@ -81,12 +81,13 @@ void loop()                     // main program
     timer = millis(); // reset the timer
     
     if (GPS.fix) {
+
       Serial.print("Location in degrees: ");
-      Serial.print(GPS.latitudeDegrees, 4); Serial.print(GPS.lat);
-      Serial.print(", "); 
-      Serial.println(GPS.longitudeDegrees, 4); Serial.println(GPS.lon);      
+      Serial.print(GPS.latitudeDegrees); Serial.println(GPS.lat);
+      Serial.print(GPS.longitudeDegrees); Serial.println(GPS.lon);   
       Serial.print("Angle: "); Serial.println(GPS.angle);
       Serial.print("Altitude: "); Serial.println(GPS.altitude);
     }
   }
 }
+
