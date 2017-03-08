@@ -4,7 +4,7 @@
 %control applications. 
 
 %Constants and Dependent Variables
-T = 1/5;                    %sample period
+T = 1;                    %sample period
 
 fs = 1/T;                   %sample frequency
 

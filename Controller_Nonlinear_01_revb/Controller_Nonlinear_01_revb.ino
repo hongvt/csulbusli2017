@@ -1,3 +1,4 @@
+
 /********************* BASIC AUTONOMOUS CONTROL SKETCH *********************/
 /* _TYPE: NONLINEAR ADAPTIVE CONTROLLERg
  * This sketch amounts to an autonomous controller for a simple flight path
@@ -15,8 +16,7 @@
 
 #include <Servo.h>
 #include <Adafruit_GPS.h>
-//#include <Wire.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 
 /***************************************************************************/
 /* GPS Things */
@@ -27,8 +27,8 @@
 //   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
 //   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
 
-SoftwareSerial mySerial(3, 2);
-//HardwareSerial mySerial = Serial1;
+//SoftwareSerial mySerial(3, 2);
+HardwareSerial mySerial = Serial1;
 
 Adafruit_GPS GPS(&mySerial);
 
@@ -38,23 +38,16 @@ Adafruit_GPS GPS(&mySerial);
 // set to use or not use interrupt -- you can change in the setup section
 boolean usingInterrupt = false;
 void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
-void readSTATE();
-void storeSTATE();
-void transform_coordinates();
-double iir_2(double, double[2], double[3], double[3]);
-int region(double, double);
-int bearing_command(int);
-int ang_err_condition(int);
-void output_conditioning();
 
 /*****************************************************************************/
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fan_val = 0;                       // fan actuation variable
-double ser_val = 0;                       // servo actuation variable
+double fan_val = 1000;                    // fan actuation variable
+double ser_val = 1500;                    // servo actuation variable
 
 /* Measurements and State Variables */
+//states measured from GPS
 double lat_deg_0;                         // latitude measured upon reset (deg)
 double lat_deg_i;                         // current latitude             (deg)
 double long_deg_0;                        // longitude measured upon reset(deg)
@@ -62,29 +55,35 @@ double long_deg_i;                        // current longitude            (deg)
 double alt_0;                             // altitude measured upon reset  (m)
 double alt_i;                             // current altitude              (m)
 unsigned int angle_i;                     // Course over ground angle     (deg)
+//states mapped to control coordinate system
 double x;                                 // x position (conditioned longitutde)(ft)
 double y;                                 // y position (conditioned latitude)  (ft)
 double z;                                 // z position (conditioned altitude)  (ft)
 double dist;                              // distance squared from the oirigin (ft^2)
 double desc;                              // DESCENT rate                      (ft/s)
 uint8_t region_i;                         // region based on x and y coordinates ()
+
 /*--ERROR SIGNALS--*/
 double error_dist;                        // distance error                    (ft^2) 
 double error_angle;                       // angle error                        (deg)    
 double error_desc;                        // DESCENT rate error                (ft/s)
+
 /*--CONTROL INPUTS--*/
 unsigned int angle_c;                     // desired bearing angle
-const double RADIUS_MAX = 300;            // desired RADIUS from launch site (ft) 
-const double RADIUS_MIN = 200;            // minimum desired RADIUS from launch site (ft)
-const double DESCENT_1 = 1;               // desired DESCENT rate (ft/s)
-const double DESCENT_2 = 5;
-const double SER_BIAS = 10;               // servo position for desired turning radius
+const double RADIUS_MAX = 15;            // desired RADIUS from launch site (ft) 
+const double RADIUS_MIN = 10;            // minimum desired RADIUS from launch site (ft)
+const double DESCENT_1 = 0;               // desired DESCENT rate (ft/s)
+const double DESCENT_2 = 1;
+const double SER_BIAS = 0;               // servo position for desired turning radius
+
 /*--CONTROLLER GAINS--*/
-double K_ANGLE = 5;
-double K_DIST = 5;
-double K_DESC = 5; 
+double K_ANGLE = 1;
+double K_DIST = 1;
+double K_DESC = 1; 
+
 /*--CONTROLLER SELECTOR--*/
 uint8_t controller;
+
 /********************** IIR filter constants and arrays **********************/
 /*--Filter Coefficients for xyz position, descent rate and compensation--*/
 //these assume a sampling frequency of 5Hz... use Matlab script to calculate
@@ -104,50 +103,54 @@ static double descbuff[2] = {};           // Buffer for intermidiate dz/dts
 static double csbuff[2] = {};             // Buffer for steering compensator
 static double cabuff[2] = {};             // Buffer for altitude compensator
 /*--SAMPLE TIME--*/
-const int T_SAMP = 1000;                  // Sample period (ms)
+const int T_SAMP = 500;                  // Sample period (ms)
 uint32_t timer = millis();                // Timer for sampler
 //-----------------------------------------------------------------------------
 //---------------------------------BEGIN SETUP---------------------------------
 void setup() {
   
   /* initializations */
-  //Serial.begin(115200);
+  Serial.begin(115200);
   GPS.begin(9600); 
+  Serial.println("Setup is starting to start starting...");
+
+ 
+  /* GPS Setup */
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);     //recommended minimum fix data plus altitude
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);        //update rate = 1Hz 
+  GPS.sendCommand(PGCMD_ANTENNA);                   //updates on antenna status
 
   /* PWM Output Pin Setup */
   // PWM pins on arduino pro mini are 3,5,6,9,10,11
-  fan.attach(10);  
-  ser.attach(11);
+  fan.attach(10, 1000, 2000);  
+  ser.attach(11, 1300, 1700);
+  pinMode(10,OUTPUT);
+  pinMode(11,OUTPUT);
+  fan.writeMicroseconds(1000);                 // write pwm 
+  ser.writeMicroseconds(1500);  
   
-  /* GPS Setup */
-  // uncomment to turn on recommended minimum fix data including altitude
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-  // uncomment to turn on only recomended minimum data
-  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+   useInterrupt(true);                              //timer0 interrupt -- try to read GPS every 1ms
+   delay(2000);
 
-  // Set the update rate to 5Hz
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); 
-
-  // Request updates on antenna status, comment out to keep quiet
-  GPS.sendCommand(PGCMD_ANTENNA);
-
-  // timer0 interrupt -- tries to read GPS every 1 ms
-   useInterrupt(true);
-   delay(10000);
-
-  while(alt_0 == 0){
+  //while(alt_0 == 0){
   readSTATE();
-  storeSTATE();
-  long_deg_0 = long_deg_i;            //Store position of the launch site
+  
+  storeSTATE();  
+  long_deg_0 = long_deg_i;                          //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
-  }
+  //}
+
+  //illuminate status leds
+
   
-  // illuminate status LEDs to verify stuff works
-  
-  // ESC and Servo initialization
-  fan.writeMicroseconds(1000);                 // write pwm 
-  ser.writeMicroseconds(1500);                 // write pwm  
+  Serial.println("\nAUTONOMOUS LANDING CONTROL FOR A PARAGLIDER!");
+  Serial.print("location of origin: ");
+  Serial.print(lat_deg_0); Serial.print(", "); Serial.println(long_deg_0);
+  Serial.print("altitude: ");
+  Serial.println(GPS.altitude);
+
+
   
 }
 //-----------------------------------END SETUP---------------------------------------
@@ -156,16 +159,14 @@ void setup() {
 
 // -------- Interrupt service routine -- looks for new GPS data and stores it -------
 SIGNAL(TIMER0_COMPA_vect) {
-  char c = GPS.read();
-  // if you want to debug, this is a good time to do it!
-  
-  // I think we can comment the following thing out...
+  char c = GPS.read();  
 #ifdef UDR0
   if (GPSECHO)
     if (c) UDR0 = c;  
     // writing direct to UDR0 is much much faster than Serial.print 
     // but only one character can be written at a time. 
 #endif
+
 }
 // --------------------------- Interrupt enable function ------------------------------
 void useInterrupt(boolean v) {
@@ -185,22 +186,31 @@ void useInterrupt(boolean v) {
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
 void loop() {
+      
     readSTATE();
+      
     /*________________________________SAMPLING TIMER___________________________________*/
     if (timer > millis())  timer = millis();  // wrap timer reset
     if (millis() - timer >= T_SAMP) {         // once we've counted up to T_SAMP, do stuff
     timer = millis();                       
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
-    storeSTATE();                              // function reads lat, long, alt, bearing
+    storeSTATE();                             // function reads lat, long, alt, bearing
     transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
     /* Filter the state measurements by calling iir_2() */
     //x = iir_2(x,xbuff,a,b);
     //y = iir_2(y,ybuff,a,b);
     //z = iir_2(z,zbuff,a,b);
-    desc = iir_2(z,descbuff,ad,bd);                   // estimate current descent rate
-    dist = x*x + y*y;                                 // calcualte distance^2 from the origin     
+    desc = iir_2(z,descbuff,ad,bd);           // estimate current descent rate
+    dist = x*x + y*y;                         // calcualte distance^2 from the origin 
+    //fan.detach();
+    //ser.detach();    
      /*____________________________________CONTROL_____________________________________*/
     controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
+//    Serial.println(controller);   Serial.print(",");
+//    Serial.print("(x,y,z) = (");
+//    Serial.print(x,1);          Serial.print(","); 
+//    Serial.print(y,1);          Serial.print(","); 
+//    Serial.print(z,1);          Serial.println(");");
     switch(controller){
       case 1: /* Controller 1: go straight toward the launch site */
         region_i = region(x,y);                       // determine what region we arein
@@ -209,6 +219,20 @@ void loop() {
         error_angle = ang_err_condition(error_angle); // wrap angle error
         error_desc = DESCENT_1 - desc;                // calculate descent rate error for phase 1
         ser_val = error_angle*K_ANGLE;
+
+//      Serial.print("R: ");
+//      Serial.println(region_i);     //Serial.print(",");
+//      Serial.print("AC: ");
+//      Serial.println(angle_c);      //Serial.print(",");
+//      Serial.print("AI: ");
+//      Serial.println(angle_i);      //Serial.print(",");
+//      //Serial.print("EA: ");
+//      //Serial.println(error_angle,1);//Serial.print(",");
+//      Serial.print("DC: ");
+//      Serial.println(DESCENT_1);    //Serial.print(",");
+//      Serial.print("D: ");
+//      Serial.println(desc,1);       //Serial.print(",");
+      
         break;
       case 2: /* Controller 2: spiral downard around launch site */
         error_desc = DESCENT_2 - desc;                // calcualte descent rate error for phase 2
@@ -217,6 +241,12 @@ void loop() {
           error_dist = RADIUS_MAX*RADIUS_MAX - dist;
           ser_val = error_dist*K_DIST;}              // apply compensation if beyond RADIUS_MAX
         else  {ser_val = SER_BIAS;}                   // sert servo to the bias angle
+//      Serial.print("RC: ");
+//      Serial.println(RADIUS_MAX*RADIUS_MAX); // Serial.print(",");
+//      Serial.print("RI: ");
+//      Serial.println(dist);                   //Serial.print(",");
+//      Serial.print("DR: ");
+//      Serial.println(desc);
         break;
       default:
         break;
@@ -224,10 +254,23 @@ void loop() {
     fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();     
+
+//   Serial.print("ser: ");
+//   Serial.println(ser_val);     //Serial.print(",");
+//   Serial.print("fan: ");
+//   Serial.println(fan_val);     //Serial.println(";");
+//   Serial.println("\n--------------------");
+
     
+    //fan.attach(10, 1000, 2000);  
+    //ser.attach(11, 1300, 1400);
     fan.writeMicroseconds(fan_val);                 // write pwm 
-    ser.writeMicroseconds(ser_val);                 // write pwm    
+    ser.writeMicroseconds(ser_val);                 // write pwm 
+    delay(900);   
     }
+    //fan.writeMicroseconds(fan_val);                 // write pwm 
+    //ser.writeMicroseconds(ser_val);                 // write pwm 
+    //delay(900);
 }
 //-------------------------------------END LOOP----------------------------------------
 //-------------------------------------------------------------------------------------
@@ -237,39 +280,40 @@ void loop() {
 
 //------------------------------GPS READING FUNCTION----------------------------------
 void readSTATE(){
-   // gps data has to be read and parsed. I think since we are using the ISR, we don't
+  fan.detach();
+  ser.detach();
+// gps data has to be read and parsed. I think since we are using the ISR, we don't
     // need to worry about the thing immediately below
     if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
+    // read data from the GPS
       char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
       if (GPSECHO)
         if (c) Serial.print(c);
         } 
 
     // if a sentence is received, we can check the checksum, parse it...
     if (GPS.newNMEAreceived()) {
-      // a tricky thing here is if we print the NMEA sentence, or data
-      // we end up not listening and catching other sentences! 
-      // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-      //Serial.println(GPS.lastNMEA());   // sets the newNMEAreceived() flag to false
-  
       if (!GPS.parse(GPS.lastNMEA()))   // sets the newNMEAreceived() flag to false
         return;  // wait for another sentence if there is failure to parse
-        }    
+        }     
+  fan.attach(10, 1000, 2000);  
+  ser.attach(11, 1300, 1700); 
 }
-
 void storeSTATE(){
+  //fan.detach();
+  //ser.detach();
     // What is the minimum data that we need?
     // --x,y position relative to launch site
     // --altitude relative to launch site
     // --bearing angle
-    if(GPS.fix){     
+    if(GPS.fix){
     long_deg_i =  (double)GPS.longitudeDegrees;
     lat_deg_i =   (double)GPS.latitudeDegrees; 
     angle_i =     (int)GPS.angle;               //assuming NED for now
     alt_i =       (double)GPS.altitude; 
     }
+  //fan.attach(10, 1000, 2000);  
+  //ser.attach(11, 1300, 1400);
     // if angle is in ENU, uncomment the following:
     // angle_i = (360-(angle_i-90))%360;
 }
@@ -327,8 +371,8 @@ int region(double x1, double x2){
   int diff =    0;
   unsigned int ratio =   0;
   
-  x1 = int(x1/32);                      //type conversion to speed up math and division by 32
-  x2 = int(x2/32);                      //ensures no overflow while within one mile of origin
+  x1 = int(x1);                      //type conversion to speed up math and division by 32
+  x2 = int(x2);                      //ensures no overflow while within one mile of origin
 
   if(x1==0)           {x1 = 1;}         //easy way to deal with being on axis
   if(x2==0)           {x2 = 1;}         //don't consider it a possiblity :)
@@ -387,16 +431,23 @@ void output_conditioning(){
   // making it work is just a matter of knowing the thrust characteristics of the fan
   // and the relationship between turning radius and servo angle
   // Clipping for actuation signals:
+  
+    //Serial.print("ser: ");
+    //Serial.println(ser_val);     //Serial.print(",");
+    //Serial.print("fan: ");
+    //Serial.println(fan_val);     //Serial.println(";");
+    //Serial.println("\n--------------------");
+    
     if(ser_val < -50)       {ser_val = -50; }  
     else if(ser_val > 50)   {ser_val = 50; }
     else                 
 
-    if(fan_val < 0)         {fan_val = 0; }
-    else if (fan_val > 1000){fan_val = 1000; }
+    if(fan_val < -10)         {fan_val = -10; }
+    else if (fan_val > 10)    {fan_val = 10; }
     else
     
     //mapping below is for int valued inputs
-    fan_val = map(fan_val, 0, 1024, 1000, 2000);    // map actuation value to pulse width    
+    fan_val = map(fan_val, 0, 10, 1000, 2000);      // map actuation value to pulse width    
     ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
 }
 
