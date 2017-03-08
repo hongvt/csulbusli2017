@@ -16,7 +16,7 @@
 
 #include <Servo.h>
 #include <Adafruit_GPS.h>
-//#include <SoftwareSerial.h>
+#include <SoftwareSerial.h>
 
 /***************************************************************************/
 /* GPS Things */
@@ -27,8 +27,8 @@
 //   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
 //   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
 
-//SoftwareSerial mySerial(3, 2);
-HardwareSerial mySerial = Serial1;
+SoftwareSerial mySerial(3, 2);
+//HardwareSerial mySerial = Serial1;
 
 Adafruit_GPS GPS(&mySerial);
 
@@ -41,9 +41,9 @@ void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 
 /*****************************************************************************/
 /* Servo Things */
-Servo fan;                                // create servo object for fan
+//Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fan_val = 1000;                    // fan actuation variable
+//double fan_val = 1000;                    // fan actuation variable
 double ser_val = 1500;                    // servo actuation variable
 
 /* Measurements and State Variables */
@@ -103,7 +103,7 @@ static double descbuff[2] = {};           // Buffer for intermidiate dz/dts
 static double csbuff[2] = {};             // Buffer for steering compensator
 static double cabuff[2] = {};             // Buffer for altitude compensator
 /*--SAMPLE TIME--*/
-const int T_SAMP = 500;                  // Sample period (ms)
+const int T_SAMP = 1000;                  // Sample period (ms)
 uint32_t timer = millis();                // Timer for sampler
 //-----------------------------------------------------------------------------
 //---------------------------------BEGIN SETUP---------------------------------
@@ -122,24 +122,24 @@ void setup() {
 
   /* PWM Output Pin Setup */
   // PWM pins on arduino pro mini are 3,5,6,9,10,11
-  fan.attach(10, 1000, 2000);  
+  //fan.attach(10, 1000, 2000);  
   ser.attach(11, 1300, 1700);
   pinMode(10,OUTPUT);
   pinMode(11,OUTPUT);
-  fan.writeMicroseconds(1000);                 // write pwm 
+  //fan.writeMicroseconds(1000);                 // write pwm 
   ser.writeMicroseconds(1500);  
   
-   useInterrupt(true);                              //timer0 interrupt -- try to read GPS every 1ms
+   useInterrupt(false);                              //timer0 interrupt -- try to read GPS every 1ms
    delay(2000);
 
-  //while(alt_0 == 0){
+  while(alt_0 == 0){
   readSTATE();
   
   storeSTATE();  
   long_deg_0 = long_deg_i;                          //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
-  //}
+  }
 
   //illuminate status leds
 
@@ -251,7 +251,7 @@ void loop() {
       default:
         break;
     }
-    fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
+    //fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();     
 
@@ -264,9 +264,9 @@ void loop() {
     
     //fan.attach(10, 1000, 2000);  
     //ser.attach(11, 1300, 1400);
-    fan.writeMicroseconds(fan_val);                 // write pwm 
+    //fan.writeMicroseconds(fan_val);                 // write pwm 
     ser.writeMicroseconds(ser_val);                 // write pwm 
-    delay(900);   
+    //delay(900);   
     }
     //fan.writeMicroseconds(fan_val);                 // write pwm 
     //ser.writeMicroseconds(ser_val);                 // write pwm 
@@ -280,8 +280,8 @@ void loop() {
 
 //------------------------------GPS READING FUNCTION----------------------------------
 void readSTATE(){
-  fan.detach();
-  ser.detach();
+  //fan.detach();
+  //ser.detach();
 // gps data has to be read and parsed. I think since we are using the ISR, we don't
     // need to worry about the thing immediately below
     if (! usingInterrupt) {
@@ -296,8 +296,8 @@ void readSTATE(){
       if (!GPS.parse(GPS.lastNMEA()))   // sets the newNMEAreceived() flag to false
         return;  // wait for another sentence if there is failure to parse
         }     
-  fan.attach(10, 1000, 2000);  
-  ser.attach(11, 1300, 1700); 
+  //fan.attach(10, 1000, 2000);  
+  //ser.attach(11, 1300, 1700); 
 }
 void storeSTATE(){
   //fan.detach();
@@ -442,12 +442,12 @@ void output_conditioning(){
     else if(ser_val > 50)   {ser_val = 50; }
     else                 
 
-    if(fan_val < -10)         {fan_val = -10; }
-    else if (fan_val > 10)    {fan_val = 10; }
-    else
+//    if(fan_val < -10)         {fan_val = -10; }
+//    else if (fan_val > 10)    {fan_val = 10; }
+//    else
     
     //mapping below is for int valued inputs
-    fan_val = map(fan_val, 0, 10, 1000, 2000);      // map actuation value to pulse width    
+//    fan_val = map(fan_val, 0, 10, 1000, 2000);      // map actuation value to pulse width    
     ser_val = map(ser_val, -50, 50, 1300, 1700);    // map actuation value to pulse width
 }
 
