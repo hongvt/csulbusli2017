@@ -20,10 +20,10 @@
 
 /***************************************************************************/
 /* GPS Things */
-SoftwareSerial mySerial(3, 2);
-Adafruit_GPS GPS(&mySerial);
-//HardwareSerial mySerial = Serial1;
-//Adafruit_GPS GPS(&Serial1);
+//SoftwareSerial mySerial(3, 2);
+//Adafruit_GPS GPS(&mySerial);
+HardwareSerial mySerial = Serial1;
+Adafruit_GPS GPS(&Serial1);
 
 #define GPSECHO  false
 boolean usingInterrupt = false;
@@ -71,9 +71,9 @@ const int    FAN_MIN = 1000;              // fan min pulse length               
 const int    FAN_MAX = 2000;              // fan max pulse length               (us)
 
 /*--CONTROLLER GAINS--*/
-double K_ANGLE = 1;
-double K_DIST = 1;
-double K_DESC = 1; 
+double K_ANGLE = 5;
+double K_DIST = 5;
+double K_DESC = 5; 
 
 /*--CONTROLLER SELECTOR--*/
 uint8_t controller;
@@ -131,11 +131,12 @@ void setup() {
   ser.attach(11, SER_MIN, SER_MAX);
   pinMode(10,OUTPUT);
   pinMode(11,OUTPUT);
+  pinMode(A0,OUTPUT);
   fan.writeMicroseconds(1000);                  // write pwm 
   ser.writeMicroseconds(1500);  
   
    useInterrupt(false);                         //timer0 interrupt -- read GPS every 1ms
-   delay(1000);
+   delay(2000);
 
   while(alt_i == 0){                            //don't proceed unless you are getting
     readSTATE();                                //good data
@@ -144,13 +145,14 @@ void setup() {
 
   for(int ii = 0; ii < 100; ii++){              //read GPS a bunch of times
     digitalWrite(A0,HIGH);
+    delay(5);
     readSTATE();  
     storeSTATE();
     long_deg_0 = long_deg_i;                    //Store position of the launch site
     lat_deg_0 = lat_deg_i;
     alt_0 = alt_i;
     digitalWrite(A0,LOW);
-    delay(5);
+    delay(50);
   }
 
   digitalWrite(A0,HIGH);                        //Status LED: all is well
@@ -208,11 +210,11 @@ void loop() {
     dist = x*x + y*y;                         // calcualte distance^2 from the origin 
      /*____________________________________CONTROL_____________________________________*/
     controller = (dist > 1.5*RADIUS_MAX*RADIUS_MAX)? 1:2; // controller phase determined by dist
-//    Serial.println(controller);   Serial.print(",");
-//    Serial.print("(x,y,z) = (");
-//    Serial.print(x,1);          Serial.print(","); 
-//    Serial.print(y,1);          Serial.print(","); 
-//    Serial.print(z,1);          Serial.println(");");
+    Serial.println(controller);   Serial.print(",");
+    Serial.print("(x,y,z) = (");
+    Serial.print(x,1);          Serial.print(","); 
+    Serial.print(y,1);          Serial.print(","); 
+    Serial.print(z,1);          Serial.println(");");
     switch(controller){
       case 1: /* Controller 1: go straight toward the launch site */
         region_i = region(x,y);                       // determine what region we arein
@@ -222,18 +224,18 @@ void loop() {
         error_desc = DESCENT_1 - desc;                // calculate descent rate error for phase 1
         ser_val = error_angle*K_ANGLE;
 
-//      Serial.print("R: ");
-//      Serial.println(region_i);     //Serial.print(",");
-//      Serial.print("AC: ");
-//      Serial.println(angle_c);      //Serial.print(",");
-//      Serial.print("AI: ");
-//      Serial.println(angle_i);      //Serial.print(",");
-//      //Serial.print("EA: ");
-//      //Serial.println(error_angle,1);//Serial.print(",");
-//      Serial.print("DC: ");
-//      Serial.println(DESCENT_1);    //Serial.print(",");
-//      Serial.print("D: ");
-//      Serial.println(desc,1);       //Serial.print(",");
+      Serial.print("R: ");
+      Serial.println(region_i);     //Serial.print(",");
+      Serial.print("AC: ");
+      Serial.println(angle_c);      //Serial.print(",");
+      Serial.print("AI: ");
+      Serial.println(angle_i);      //Serial.print(",");
+      //Serial.print("EA: ");
+      //Serial.println(error_angle,1);//Serial.print(",");
+      Serial.print("DC: ");
+      Serial.println(DESCENT_1);    //Serial.print(",");
+      Serial.print("D: ");
+      Serial.println(desc,1);       //Serial.print(",");
       
         break;
       case 2: /* Controller 2: spiral downard around launch site */
@@ -243,12 +245,12 @@ void loop() {
           error_dist = RADIUS_MAX*RADIUS_MAX - dist;
           ser_val = error_dist*K_DIST;}              // apply compensation if beyond RADIUS_MAX
         else  {ser_val = SER_BIAS;}                   // sert servo to the bias angle
-//      Serial.print("RC: ");
-//      Serial.println(RADIUS_MAX*RADIUS_MAX); // Serial.print(",");
-//      Serial.print("RI: ");
-//      Serial.println(dist);                   //Serial.print(",");
-//      Serial.print("DR: ");
-//      Serial.println(desc);
+      Serial.print("RC: ");
+      Serial.println(RADIUS_MAX*RADIUS_MAX); // Serial.print(",");
+      Serial.print("RI: ");
+      Serial.println(dist);                   //Serial.print(",");
+      Serial.print("DR: ");
+      Serial.println(desc);
         break;
       default:
         break;
@@ -257,11 +259,11 @@ void loop() {
     /*____________________________________OUTPUT_______________________________________*/
     output_conditioning();     
 
-//   Serial.print("ser: ");
-//   Serial.println(ser_val);     //Serial.print(",");
-//   Serial.print("fan: ");
-//   Serial.println(fan_val);     //Serial.println(";");
-//   Serial.println("\n--------------------");
+   Serial.print("ser: ");
+   Serial.println(ser_val);     //Serial.print(",");
+   Serial.print("fan: ");
+   Serial.println(fan_val);     //Serial.println(";");
+   Serial.println("\n--------------------");
     }
     fan.writeMicroseconds(fan_val);                 // write pwm 
     ser.writeMicroseconds(ser_val);                 // write pwm 

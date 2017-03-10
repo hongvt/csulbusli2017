@@ -113,8 +113,8 @@ uint32_t timer = millis();                // Timer for sampler
 void setup() {
   
   /* initializations */
-  //Serial.begin(115200);
-  //Serial.println("testing the thingy");
+  Serial.begin(115200);
+  Serial.println("testing the thingy");
   GPS.begin(9600); 
 
   /* PWM Output Pin Setup */
@@ -145,21 +145,21 @@ void setup() {
    //Serial.println(GPS.fix);
       //  delay(100);
     //}
-  //while(alt_0 == 0){
+  while(alt_0 == 0){
   readSTATE();
   storeSTATE();
   long_deg_0 = long_deg_i;            //Store position of the launch site
   lat_deg_0 = lat_deg_i;
   alt_0 = alt_i;
-  //}
+  }
 
-//  Serial.println("\nTEST OF CONTROLLER 1: DRIVE AROUND WITH GPS OUT THE WINDOW!");
-//  Serial.print("location of origin: ");
-//  Serial.print(lat_deg_0); Serial.print(", "); Serial.println(long_deg_0);
-//  Serial.print("altitude: ");
-//  Serial.println(GPS.altitude);
-//  Serial.println("data to come will be in the following format:");
-//  Serial.println("x,   y,   z;");
+  Serial.println("\nTEST OF CONTROLLER 1: DRIVE AROUND WITH GPS OUT THE WINDOW!");
+  Serial.print("location of origin: ");
+  Serial.print(lat_deg_0); Serial.print(", "); Serial.println(long_deg_0);
+  Serial.print("altitude: ");
+  Serial.println(GPS.altitude);
+  Serial.println("data to come will be in the following format:");
+  Serial.println("x,   y,   z;");
 
   
   // LED must illuminate only if the location in degrees measured is nonzero
