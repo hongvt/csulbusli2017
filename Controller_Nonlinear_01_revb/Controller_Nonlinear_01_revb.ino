@@ -77,6 +77,7 @@ double K_DESC = 5;
 
 /*--CONTROLLER SELECTOR--*/
 uint8_t controller;
+bool    start;
 
 /********************** IIR filter constants and arrays **********************/
 /*--Filter Coefficients for xyz position, descent rate and compensation--*/
@@ -99,6 +100,8 @@ static double cabuff[2] = {};             // Buffer for altitude compensator
 /*--SAMPLE TIME--*/
 const int T_SAMP = 1000;                  // Sample period (ms)
 uint32_t timer = millis();                // Timer for sampler
+
+
 
 
 /*************************** Function Prototypes *****************************/
@@ -132,9 +135,13 @@ void setup() {
   pinMode(10,OUTPUT);
   pinMode(11,OUTPUT);
   pinMode(A0,OUTPUT);
+  pinMode(A1,INPUT);                            // Turn on control system
+  pinMode(A2,OUTPUT);                           // Pi control
   fan.writeMicroseconds(1000);                  // write pwm 
-  ser.writeMicroseconds(1500);  
-  
+  ser.writeMicroseconds(1500);
+  digitalWrite(A4,LOW);                         // keep Pi turned off.
+    
+  start = LOW;
    useInterrupt(false);                         //timer0 interrupt -- read GPS every 1ms
    delay(2000);
 
@@ -193,7 +200,12 @@ void useInterrupt(boolean v) {
 
 //--------------------------------------------------------------------------------------
 // ---------------------------------- BEGIN LOOP ---------------------------------------
-void loop() {      
+void loop() {     
+
+    if( digitalRead(A1)==LOW){                // test output of altimiter
+      start = HIGH;
+    }
+    
     readSTATE();      
     /*________________________________SAMPLING TIMER___________________________________*/
     if (timer > millis())  timer = millis();  // wrap timer reset
@@ -202,10 +214,13 @@ void loop() {
     /*_________________________MEASUREMENT AND DATA FILTERING__________________________*/
     storeSTATE();                             // function reads lat, long, alt, bearing
     transform_coordinates();                  // convert lat, long and alt to xyz in (ft)
-    /* Filter the state measurements by calling iir_2() */
-    //x = iir_2(x,xbuff,a,b);
-    //y = iir_2(y,ybuff,a,b);
-    //z = iir_2(z,zbuff,a,b);
+    
+    if(alt_i > 100){                          // turn the pi on when you launch
+      digitalWrite(A2,HIGH);
+    }
+ 
+    if(start == HIGH){
+      Serial.println("control mode: ON");
     desc = iir_2(z,descbuff,ad,bd);           // estimate current descent rate
     dist = x*x + y*y;                         // calcualte distance^2 from the origin 
      /*____________________________________CONTROL_____________________________________*/
@@ -256,7 +271,14 @@ void loop() {
         break;
     }
     fan_val = error_desc*K_DESC;                   // calculate control effort for fan                    
+    }
+    else{
+      Serial.println("control mode: OFF");
+      fan_val = 0;
+      ser_val = 0;
+    }
     /*____________________________________OUTPUT_______________________________________*/
+    
     output_conditioning();     
 
    Serial.print("ser: ");
