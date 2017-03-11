@@ -37,8 +37,8 @@ boolean usingInterrupt = false;
 /* Servo Things */
 Servo fan;                                // create servo object for fan
 Servo ser;                                // create servo object for servo
-double fan_val = 1000;                    // fan actuation variable
-double ser_val = 1500;                    // servo actuation variable
+double fan_val = 0;                       // fan actuation variable
+double ser_val = 0;                       // servo actuation variable
 
 /****************************************************************************/
 /* Measurements and State Variables */
@@ -69,7 +69,7 @@ const double RADIUS_MAX = 15;             // desired RADIUS from launch site    
 const double RADIUS_MIN = 10;             // minimum RADIUS from launch site    (ft)
 const double DESCENT_1  = 0;              // desired DESCENT rate              (ft/s)
 const double DESCENT_2  = 1;
-const double SER_BIAS   = 0;              // servo position for desired turning radius
+const double SER_BIAS   = -5;             // servo position for desired turning radius
 const int    SER_MIN    = 1200;           // servo min pulse length             (us)
 const int    SER_MAX    = 1800;           // servo max pulse length             (us)
 const int    FAN_MIN    = 1000;           // fan min pulse length               (us)
@@ -413,7 +413,7 @@ int bearing_command(int locus){
   int NED = 0;
   //The region we find ourselves in determines what angle we ought to be going
   //If the GPS outputs an angle over ground in ENU...
-  ENU = (45*((locus+3)%8))%360;
+  ENU = (45*((locus+3)%8)-1)%360;
   NED = (360-(ENU-90))%360;
 
   return NED;                           // remember to check if NED is the correct thing
