@@ -156,6 +156,10 @@ void setup() {
   }
 
   digitalWrite(A0,HIGH);                        // Status LED: all is well
+
+  digitalWrite(A2,HIGH);                        // turn the pi on to see if it works
+  delay(2000);
+  digitalWrite(A2,LOW);                         // turn the pi back off for now
   
   Serial.println("\nAUTONOMOUS LANDING CONTROL FOR A PARAGLIDER!");
   Serial.print("location of origin: ");
