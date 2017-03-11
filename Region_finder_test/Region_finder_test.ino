@@ -32,36 +32,45 @@ void loop() {
   
   x = 1000*cos(omega*t);
   y = 1000*sin(omega*t);
-
+  //Serial.print("coordinate: ");
+  Serial.print(x/100);
+  Serial.print(",");
+  Serial.print(y/100);
+  Serial.print(",");
+  
   region_i = region(x,y);
-  ENU = (45*((region_i+3)%8)+22)%360;         //Map region to desired bearing in ENU
+  ENU = (45*((region_i+3)%8))%360;            //Map region to desired bearing in ENU
   NED = (360-(ENU-90))%360;                   //convert to NED
 
  //Open up serial plotter or serial monitor to verify this works
  //division by factors of 30 is so it is easy to see everything
-  Serial.print(x/30);
+  //Serial.print("region: ");
+  Serial.print(region_i);
   Serial.print(",");
-  Serial.print(y/30);
-  Serial.print(",");
-  Serial.print(region(x,y));
-  Serial.print(",");
-  Serial.print(ENU/30);
-  Serial.print(",");
+  //Serial.print(ENU/30);
+  //Serial.print(",");
   Serial.println(NED/30);
   }
 
 //-----------------------------WHAT REGION ARE WE IN?-------------------------------
-int region(double x1, double x2){
+int region(double x_1, double x_2){
   uint8_t reg =     0;
   uint8_t quad =    0;
+  int x1;
+  int x2;
   int product = 0;
   int sum =     0;
   int diff =    0;
   unsigned int ratio =   0;
   
-  x1 = int(x1/32);                      //type conversion to speed up math, and division by 32
-  x2 = int(x2/32);                      //to ensure no overflow will occur if within 1 mile of origin
+  x1 = (int)x_1/32;                      //type conversion to speed up math, and division by 32
+  x2 = (int)x_2/32;                      //to ensure no overflow will occur if within 1 mile of origin
 
+  //Serial.print("integer coordinate: ");
+  //Serial.print(x1);
+  //Serial.print(",");
+  //Serial.print(x2);
+  //Serial.println(",");
   if(x1==0)           {x1 = 1;}         //easy way to deal with being on axis
   if(x2==0)           {x2 = 1;}         //don't consider it a possiblity :)
   
@@ -91,6 +100,7 @@ int region(double x1, double x2){
 
   return reg;                           //return integer value of the region
 }
+
 
 
 

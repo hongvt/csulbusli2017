@@ -21,9 +21,9 @@ H2 = f2^2/(s+f2)^2;         %Continuous time 2nd order LPF
 dH2 = c2d(H2,T,'tustin');   %Convert to discree time
 
 %USABLE DERIVATIVE
-fd = 3;                     %Derivative cutoff freq
+fd = .4;                     %Derivative cutoff freq
 D = fd^2*s/(s+fd)^2;        %Continuous time filtered derivative
-dD = c2d(D,T,'tustin');     %Convert to discree time
+dD = c2d(D,T,'tustin')     %Convert to discree time
 
 %PID COMPENSATOR:
 %Controller gains
