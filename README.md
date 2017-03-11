@@ -108,3 +108,21 @@ This completely bypasses MCU with a simple external circuit.
 	-Servo.h  
 	-Adafruit_GPS.h  
 	-Wire.h     ----> I believe the barometer is I2c
+
+
+##USER FRIENDLINESS:
+Since the fan was eliminated from the payload, adjusting the controller boils down to playing with 4 parameters:
+
+	1. SER_MIN: 
+		-minimum pulse width corresponding to max left turn.
+		-smaller number means tighter left turn
+	2. SER_MAX: 
+		-maximum pulse width corresponding to max right turn.
+		-larger number means tighter right turn	
+	3. SER_BIAS: 
+		-default servo deviation from neutral position while near desired distance from target. 
+		-negative number means left turns are favored.
+	4. K_ANGLE: 
+		-controller gain for phase 1: higher number means sharper turns
+	5. K_DIST: 
+		-controller gain for phase 2: higher number means sharper turns
