@@ -111,7 +111,7 @@ This completely bypasses MCU with a simple external circuit.
 
 
 ##USER FRIENDLINESS:
-Since the fan was eliminated from the payload, adjusting the controller boils down to playing with 4 parameters:
+Since the fan was eliminated from the payload, adjusting the controller boils down to playing with 5 parameters:
 
 	1. SER_MIN: 
 		-minimum pulse width corresponding to max left turn.
