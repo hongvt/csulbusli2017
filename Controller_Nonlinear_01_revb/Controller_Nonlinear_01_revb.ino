@@ -65,8 +65,8 @@ double error_desc;                        // DESCENT rate error                (
 
 /*--CONTROL INPUTS--*/
 unsigned int angle_c;                     // desired bearing angle             (deg)
-const double RADIUS_MAX = 15;             // desired RADIUS from launch site    (ft) 
-const double RADIUS_MIN = 10;             // minimum RADIUS from launch site    (ft)
+const double RADIUS_MAX = 250;            // desired RADIUS from launch site    (ft) 
+const double RADIUS_MIN = 200;            // minimum RADIUS from launch site    (ft)
 const double DESCENT_1  = 0;              // desired DESCENT rate              (ft/s)
 const double DESCENT_2  = 1;
 const double SER_BIAS   = -5;             // servo position for desired turning radius
@@ -92,7 +92,7 @@ double bd[3] = {0.05556, 0 -0.5556};      // DESCENT derivative feedforward
 /*--Buffers--*/
 static double descbuff[2] = {};           // Buffer for intermidiate dz/dts
 
-/*--SAMPLE TIME--*/
+/*--SAMPLE TIMING--*/
 const int T_SAMP  = 1000;                 // Sample period (ms)
 uint32_t timer    = millis();             // Timer for sampler
 
